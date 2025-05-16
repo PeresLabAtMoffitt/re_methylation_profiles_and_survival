@@ -1,0 +1,837 @@
+---
+title: "Alu Retrotransposons analysis"
+author: "Christelle Colin-Leitzinger"
+date: '`r Sys.Date()`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    theme: united
+    code_folding: hide
+    highlight: pygments
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+
+.figure {
+   margin-top: 25px;
+   margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+```
+
+```{r library, echo = FALSE}
+library(tidyverse)
+library(REMP)
+library(naniar)
+library(ComplexHeatmap)
+library(gtsummary)
+theme_gtsummary_compact()
+theme_set(theme_classic())
+```
+
+<style>
+div.darkblue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-size: 38px}
+</style>
+<div class = "blue">
+
+<span style="color: white;">Alu Retrotransposons analysis in AACES and NCOCS data</span>
+
+</div>
+<br>
+
+```{r load}
+load(paste0(here::here(), "/cleaned_07082022.rda"))
+```
+
+# I. Exploratory analysis
+
+<span style="color: red;">Already done in LTR_retrotransposons.Rmd</span>
+
+# II. Imputation with `grooMethy()`
+
+<span style="color: red;">Already done in LTR_retrotransposons.Rmd</span>
+
+```{r}
+groomed_data <- read_rds(paste0(here::here(), "/intermediary data/groomed_data_07262023.rds"))
+```
+
+# III. Prepare annotation data
+Need to prepare annotation for each RE type : "Alu", "L1", "ERV" (Human (hg19/hg38) Alu, LINE-1 (L1), and Long Terminal Repeat (LTR) (including endogenous retroviruses, ERV) repetitive element (RE) methylation)
+```{r, class.source = 'fold-show'}
+# library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
+# citation("IlluminaHumanMethylationEPICanno.ilm10b2.hg19")
+# remparcel_Alu <- initREMP(arrayType = "EPIC",
+#                       REtype = "Alu", # "L1", "ERV"
+#                       annotation.source = "AH", # "UCSC"
+#                       genome = "hg19", # only option for "AH"
+#                       ncore = 1)
+# remparcel_Alu
+# saveParcel(remparcel_Alu, work.dir = here::here())
+```
+
+# IV. Run prediction
+```{r, class.source = 'fold-show'}
+# remp_res_Alu <- remp(groomed_data, # Need to use BPPARAM = SnowParam(workers = 2)
+#                  REtype = 'Alu',
+#                  parcel = remparcel_Alu, ncore = 4, seed = 1234,
+#                  work.dir = here::here())
+# write_rds(remp_res_Alu, "intermediary data/remp_results_Alu_07262023.rds")
+remp_res_Alu <- read_rds(paste0(here::here(), "/intermediary data/remp_results_Alu_07262023.rds"))
+```
+
+## Explore results
+The data dimension is `r dim(remp_res_Alu)`.
+```{r, class.source = 'fold-show'}
+remp_res_Alu
+# Display more detailed information
+details(remp_res_Alu)
+# Now have 564589 rows
+remp_res_Alu@rowRanges@elementMetadata@nrows
+# they are :
+remp_res_Alu@rowRanges@elementMetadata
+```
+
+We have multiple instance for 1 RE type:
+```{r}
+remp_res_Alu@rowRanges@elementMetadata %>% as_tibble() %>% 
+  tbl_summary()
+
+remp_res_Alu@rowRanges@elementMetadata %>% as_tibble() %>% 
+  group_by(RE.Index) %>%
+  mutate(count = n()) %>%
+  ungroup() %>%
+  distinct() %>%
+  select(count) %>% 
+  tbl_summary(type = list(everything() ~ "categorical"))
+```
+
+## Metadata
+```{r, class.source = 'fold-show'}
+remp_res_Alu@metadata
+```
+
+
+## Plot var imp
+What are the important measurement available?
+```{r, class.source = 'fold-show'}
+var_imp <- remp_res_Alu@metadata[["varImp"]]
+rownames(var_imp)
+```
+
+```{r, echo = FALSE}
+var_imp1 <- var_imp %>% as_tibble(rownames = "patient_id")
+
+var_imp2 <- var_imp1 %>% column_to_rownames("patient_id") %>% t()
+var_imp3 <- var_imp2 %>% as_tibble() %>%
+  mutate(patient_id = colnames(var_imp), .before=1)
+
+var_imp3 %>%
+  mutate(all_patients = "all patients") %>%
+  ggplot(aes(x=all_patients, y=RE.swScore))+
+  geom_boxplot()+
+  geom_jitter()
+var_imp3 %>%
+  mutate(all_patients = "all patients") %>%
+  ggplot(aes(x=all_patients, y=RE.Length))+
+  geom_boxplot()+
+  geom_jitter()
+var_imp3 %>%
+  mutate(all_patients = "all patients") %>%
+  ggplot(aes(x=all_patients, y=RE.CpG.density))+
+  geom_boxplot()+
+  geom_jitter()
+
+```
+
+
+## B value
+Let's take a quick look at the data (used only 200 Alu in the heatmaps - to fit html).
+```{r, class.source = 'fold-show'}
+# Prediction results can be obtained by accessors:
+# Predicted RE-CpG methylation value (Beta value)
+Alu_beta_results <- rempB(remp_res_Alu)
+Alu_beta_results1 <- Alu_beta_results %>% as_tibble() %>%
+  cbind(Alu = remp_res_Alu@rowRanges@elementMetadata$RE.Index, .)
+
+```
+The B value data dimension is still `r dim(Alu_beta_results)`.
+
+```{r heatmap groomed, fig.height=12, fig.width=12, echo = FALSE}
+map_df <- Alu_beta_results1[1:200,] %>% group_by(Alu) %>% mutate(type = row_number())
+
+map_df1 <- map_df %>%
+  unite(Alu, c(Alu, type)) %>%
+  column_to_rownames("Alu")
+df_map1 <- t(scale(t(as.matrix(map_df1)))) # scale for standardizing the data to make variables comparable
+# column_ho = HeatmapAnnotation(is_lipids = c(map_df$is_lipids),
+#                               col = list(is_lipids = c("Yes" = "#932667FF", "No" = "grey")),
+#     na_col = "black")
+Heatmap(df_map1, name = " ",
+        na_col = "black"
+        # cluster_rows = FALSE,
+        # cluster_columns = FALSE#,
+        # top_annotation = column_ho
+        )
+```
+
+
+
+# Before Trimming
+test 10% - keep threshold at 1.7 but try to see how many RE are left
+```{r}
+remp_res_Alu_temp <- rempTrim(remp_res_Alu,threshold=1.7,missingRate=0.1)
+mat <- rempB(remp_res_Alu_temp)
+```
+
+```{r}
+mat1 <- mat %>% as_tibble() %>%
+  cbind(L1 = remp_res_Alu_temp@rowRanges@elementMetadata$RE.Index, .)
+
+dim(mat1)
+length(unique(mat1$L1))
+vec <- c(length(unique(mat1$L1)))
+print(paste0("10% missing rate for CpGs gives a data missingness of ",
+             round(mean(is.na(mat1)) * 100,2),
+             "%"))
+
+print("Let's take a look at the missingness within patients")
+a <- mat1 %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100))
+
+plot <- a %>% select(-L1_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "Patients")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+library(plotly)
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+print("Let's take a look at the missingness within CpGs")
+mat2 <- mat1 %>% 
+  group_by(L1) %>% mutate(type = row_number()) %>%
+  unite(L1, c(L1, type)) %>%
+  column_to_rownames("L1") %>% t() %>% 
+  as_tibble(rownames = "patient_id")
+
+
+a <- mat2[, 1:1000] %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100
+                                    )
+                               )
+plot <- a %>% select(-patient_id_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "1000 first CPGs")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+plot <- ggplotly(plot, tooltip="color")
+plot
+```
+
+test 15% - keep threshold at 1.7 but try to see how many RE are left
+```{r}
+remp_res_Alu_temp <- rempTrim(remp_res_Alu,threshold=1.7,missingRate=0.15)
+mat <- rempB(remp_res_Alu_temp)
+```
+
+```{r}
+mat1 <- mat %>% as_tibble() %>%
+  cbind(L1 = remp_res_Alu_temp@rowRanges@elementMetadata$RE.Index, .)
+
+dim(mat1)
+length(unique(mat1$L1))
+vec <- c(vec, length(unique(mat1$L1)))
+print(paste0("15% missing rate for CpGs gives a data missingness of ",
+             round(mean(is.na(mat1)) * 100,2),
+             "%"))
+
+print("Let's take a look at the missingness within patients")
+a <- mat1 %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100))
+
+plot <- a %>% select(-L1_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "Patients")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+library(plotly)
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+print("Let's take a look at the missingness within CpGs")
+mat2 <- mat1 %>% 
+  group_by(L1) %>% mutate(type = row_number()) %>%
+  unite(L1, c(L1, type)) %>%
+  column_to_rownames("L1") %>% t() %>% 
+  as_tibble(rownames = "patient_id")
+
+
+a <- mat2[, 1:1000] %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100
+                                    )
+                               )
+plot <- a %>% select(-patient_id_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "1000 first CPGs")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+plot <- ggplotly(plot, tooltip="color")
+plot
+```
+
+test 20% - keep threshold at 1.7 but try to see how many RE are left
+```{r}
+remp_res_Alu_temp <- rempTrim(remp_res_Alu,threshold=1.7,missingRate=0.20)
+mat <- rempB(remp_res_Alu_temp)
+```
+
+```{r}
+mat1 <- mat %>% as_tibble() %>%
+  cbind(L1 = remp_res_Alu_temp@rowRanges@elementMetadata$RE.Index, .)
+
+dim(mat1)
+length(unique(mat1$L1))
+vec <- c(vec, length(unique(mat1$L1)))
+print(paste0("20% missing rate for CpGs gives a data missingness of ",
+             round(mean(is.na(mat1)) * 100,2),
+             "%"))
+
+print("Let's take a look at the missingness within patients")
+a <- mat1 %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100))
+
+plot <- a %>% select(-L1_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "Patients")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+library(plotly)
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+print("Let's take a look at the missingness within CpGs")
+mat2 <- mat1 %>% 
+  group_by(L1) %>% mutate(type = row_number()) %>%
+  unite(L1, c(L1, type)) %>%
+  column_to_rownames("L1") %>% t() %>% 
+  as_tibble(rownames = "patient_id")
+
+
+a <- mat2[, 1:1000] %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100
+                                    )
+                               )
+plot <- a %>% select(-patient_id_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "1000 first CPGs")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+plot <- ggplotly(plot, tooltip="color")
+plot
+```
+
+test 25% - keep threshold at 1.7 but try to see how many RE are left
+```{r}
+remp_res_Alu_temp <- rempTrim(remp_res_Alu,threshold=1.7,missingRate=0.25)
+mat <- rempB(remp_res_Alu_temp)
+```
+
+```{r}
+mat1 <- mat %>% as_tibble() %>%
+  cbind(L1 = remp_res_Alu_temp@rowRanges@elementMetadata$RE.Index, .)
+
+dim(mat1)
+length(unique(mat1$L1))
+vec <- c(vec, length(unique(mat1$L1)))
+tibble(percent_missingness = c("10", "15", "20", "25"),
+       data= "data",
+       number_of_unique_cpgs = vec) %>% 
+  ggplot(aes(x=percent_missingness, y= number_of_unique_cpgs, group= data))+ 
+  geom_line()+
+  geom_point()
+print(paste0("25% missing rate for CpGs gives a data missingness of ",
+             round(mean(is.na(mat1)) * 100,2),
+             "%"))
+
+print("Let's take a look at the missingness within patients")
+a <- mat1 %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100))
+
+plot <- a %>% select(-L1_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "Patients")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+library(plotly)
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+print("Let's take a look at the missingness within CpGs")
+mat2 <- mat1 %>% 
+  group_by(L1) %>% mutate(type = row_number()) %>%
+  unite(L1, c(L1, type)) %>%
+  column_to_rownames("L1") %>% t() %>% 
+  as_tibble(rownames = "patient_id")
+
+
+a <- mat2[, 1:1000] %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100
+                                    )
+                               )
+plot <- a %>% select(-patient_id_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  labs(x= "1000 first CPGs")+ 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+a <- mat2[, 1:1500] %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100
+                                    )
+                               )
+# a %>% select(-patient_id_name) %>% 
+#   pivot_longer(everything(),
+#                values_to = "Percent missing") %>% 
+#   ggplot(aes(x= `Percent missing`, y= `Percent missing`, color= name))+
+#   geom_point()+ 
+#   theme(legend.position = "none")
+
+library(ggbeeswarm)
+a %>% select(-patient_id_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= `Percent missing`, y= `Percent missing`, color= name))+
+  geom_beeswarm(size=.7, side = 1L)+ 
+  ggtitle("1500 first CPGs")+
+  theme(legend.position = "none")
+```
+
+# V. Final Trimming
+```{r trimming, class.source = 'fold-show'}
+# Trim off less reliable predicted results:
+# Any predicted CpG values with quality score less than
+# threshold (default=1.7) will be replaced with NA.
+# CpGs contain more than missing Rate*100% (default=20%)
+# missing rate across samples will be discarded.
+remp_res_Alu <- rempTrim(remp_res_Alu,threshold=1.7,missingRate=0.2)
+details(remp_res_Alu)
+trimmed_Alu_beta_results <- rempB(remp_res_Alu)
+```
+The trimmed B value data has a reduced number of RE. The dimension is now `r dim(trimmed_Alu_beta_results)`.
+
+```{r, fig.height=12, fig.width=12, echo = FALSE}
+trimmed_Alu_beta_results <- trimmed_Alu_beta_results %>% as_tibble() %>%
+  cbind(Alu = remp_res_Alu@rowRanges@elementMetadata$RE.Index, .)
+map_df <- trimmed_Alu_beta_results[1:200,] %>% group_by(Alu) %>% mutate(type = row_number())
+
+map_df1 <- map_df %>%
+  unite(Alu, c(Alu, type)) %>%
+  column_to_rownames("Alu")
+df_map1 <- t(scale(t(as.matrix(map_df1)))) # scale for standardizing the data to make variables comparable
+# column_ho = HeatmapAnnotation(is_lipids = c(map_df$is_lipids),
+#                               col = list(is_lipids = c("Yes" = "#932667FF", "No" = "grey")),
+#     na_col = "black")
+Heatmap(df_map1, name = " ",
+        na_col = "black"
+        # cluster_rows = FALSE,
+        # cluster_columns = FALSE#,
+        # top_annotation = column_ho
+        )
+```
+
+# VI. Aggregating RE
+Even if optional (per the package vignettes), I think this is a good idea to aggregate values for the same RE.
+```{r, class.source = 'fold-show'}
+# (Optional) Aggregate the predicted methylation of CpGs in RE by averaging them to obtain the RE-specific methylation level:
+# remp_res_Alu <- rempAggregate(remp_res_Alu, NCpG = 2, ncore = 4)
+# write_rds(remp_res_Alu, "intermediary data/remp_res_Alu_aggregate_07262023.rds")
+remp_res_Alu <- read_rds(paste0(here::here(), "/intermediary data/remp_res_Alu_aggregate_07262023.rds"))
+details(remp_res_Alu)
+# Aggregating CpGs in the same RE for RE-level methylation data is beneficial because 1) it greatly reduces the
+# data dimension for downstream analysis and 2) it may produce more robust RE methylation estimation. Note that
+# by default, RE with 2 or more predicted CpG sites will be aggregated. Therefore, the downside of doing this is the
+# reduced coverage of RE. The assumption of doing this is the CpG methylation level within each RE are similar.
+aggr_Alu_beta_results <- rempB(remp_res_Alu)
+```
+The aggregate B value data has again a reduced number of RE. The dimension is now `r dim(aggr_Alu_beta_results)`.
+
+```{r, fig.height=12, fig.width=12, echo = FALSE}
+aggr_Alu_beta_results <- aggr_Alu_beta_results %>% as_tibble() %>%
+  cbind(Alu = remp_res_Alu@rowRanges@elementMetadata$RE.Index, .)
+map_df <- aggr_Alu_beta_results[1:200,] %>% group_by(Alu) %>% mutate(type = row_number())
+
+map_df1 <- map_df %>%
+  unite(Alu, c(Alu, type)) %>%
+  column_to_rownames("Alu")
+df_map1 <- t(scale(t(as.matrix(map_df1)))) # scale for standardizing the data to make variables comparable
+# column_ho = HeatmapAnnotation(is_lipids = c(map_df$is_lipids),
+#                               col = list(is_lipids = c("Yes" = "#932667FF", "No" = "grey")),
+#     na_col = "black")
+Heatmap(df_map1, name = " ",
+        na_col = "black"
+        # cluster_rows = FALSE,
+        # cluster_columns = FALSE#,
+        # top_annotation = column_ho
+        )
+```
+
+# VII. Annotation
+This step reintroduce some NAs.
+```{r, class.source = 'fold-show'}
+# To add genomic regions annotation of the predicted REs:
+# By default gene symbol annotation will be added
+# remp_res_Alu <- decodeAnnot(remp_res_Alu, ncore = 4)
+# write_rds(remp_res_Alu, "intermediary data/remp_res_Alu_annotation_07262023.rds")
+remp_res_Alu <- read_rds(paste0(here::here(), "/intermediary data/remp_res_Alu_annotation_07262023.rds"))
+
+# 4. Plot prediction
+remplot(remp_res_Alu, main = "Alu methylation", col = "blue")
+
+annot_Alu_beta_results <- rempB(remp_res_Alu)
+```
+The annotated B value data dimension doesn't change from the previous step : `r dim(annot_Alu_beta_results)`.
+
+# VIIB. Check again for outliers
+Plot patients
+```{r}
+map_df <- annot_Alu_beta_results %>% as_tibble() %>%
+  cbind(Index = remp_res_Alu@rowRanges@elementMetadata$RE.Index, .)
+
+plot <- map_df %>% 
+  pivot_longer(cols = - Index) %>% 
+  ggplot(aes(x= value, color= name))+
+  geom_density()+
+  xlim(0,1)+
+  theme(legend.position = "none")
+
+library(plotly)
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+map_df1 <- map_df %>%
+  column_to_rownames("Index")
+
+# Check for outliers
+beta = map_df1
+qq = apply(beta, 2, function(x) quantile(x, probs = c(0.25, 
+                                                      0.5, 0.75), na.rm = TRUE))
+q2575 <- apply(qq, 1, function(x) quantile(x, probs = c(0.25, 
+                                                        0.75), na.rm = TRUE))
+qr <- q2575["75%", ] - q2575["25%", ]
+up = q2575["75%", ] + 3 * qr
+low = q2575["25%", ] - 3 * qr
+flag = qq > up | qq < low
+flag = apply(flag, 2, sum) > 0
+cat(sum(flag), " samples are outliers in beta value distribution", 
+    "\n")
+
+rm(q2575, qq, flag, low, qr, up)
+
+
+
+map_df %>% select(X200360610122_R02C01) %>% 
+  # pivot_longer(cols = - Index) %>% 
+  ggplot(aes(x= X200360610122_R02C01))+
+  geom_density()+
+  xlim(0,1)+ #ylim(0,10)+
+  theme(legend.position = "none")
+```
+
+Patients % missing in final data
+```{r}
+map_df1 %>% summarise_all(list(name = ~sum(is.na(.))/length(.)))
+
+a <- map_df1 %>% summarise_all(list(name = ~sum(is.na(.))/length(.) * 100
+                                    )
+                               )
+plot <- a %>% #select(-Index_name) %>% 
+  pivot_longer(everything(),
+               values_to = "Percent missing") %>% 
+  ggplot(aes(x= name, y= `Percent missing`, color= name))+
+  geom_point()+
+  geom_segment(aes(xend= name, yend= 0))+
+  theme(legend.position = "none", 
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+
+plot <- ggplotly(plot, tooltip="color")
+plot
+
+print(paste0("Missingness rate for the overall data is ",
+             round(mean(is.na(map_df1)) * 100,2),
+             "%"))
+```
+Let's take a look at the 1 patient with more than 20% missingness
+```{r}
+map_df %>% select(X200503840077_R05C01) %>% 
+  # pivot_longer(cols = - Index) %>% 
+  ggplot(aes(x= X200503840077_R05C01))+
+  geom_density()+
+  xlim(0,1)+ #ylim(0,10)+
+  theme(legend.position = "none")
+```
+
+
+
+
+
+
+```{r heatmap annot, fig.height=12, fig.width=12, echo = FALSE}
+annot_Alu_beta_results <- annot_Alu_beta_results %>% as_tibble() %>%
+  cbind(Index = remp_res_Alu@rowRanges@elementMetadata$RE.Index, .)
+map_df <- annot_Alu_beta_results[1:200,]
+
+map_df1 <- map_df %>%
+  column_to_rownames("Index")
+df_map1 <- t(scale(t(as.matrix(map_df1)))) # scale for standardizing the data to make variables comparable
+# column_ho = HeatmapAnnotation(is_lipids = c(map_df$is_lipids),
+#                               col = list(is_lipids = c("Yes" = "#932667FF", "No" = "grey")),
+#     na_col = "black")
+Heatmap(df_map1, name = " ",
+        na_col = "black"
+        # cluster_rows = FALSE,
+        # cluster_columns = FALSE#,
+        # top_annotation = column_ho
+        )
+```
+
+```{r join Bvalue gene chr info, echo = FALSE}
+Alu_beta_results <-
+  annot_Alu_beta_results %>%
+  # Merge with annotation, get #chr, start, end
+  left_join(., as_tibble(rempAnnot(remp_res_Alu)), by = "Index")
+  
+Alu_beta_results <- Alu_beta_results %>% 
+  mutate(symbol = coalesce(InNM.symbol, InNR.symbol, InTSS.symbol, 
+                           In5UTR.symbol, InCDS.symbol, InExon.symbol, 
+                           In3UTR.symbol)) 
+
+# Prep data for overall analysis
+Alu_beta_results_ <- Alu_beta_results %>% 
+  unite(Index, c(Index, seqnames:repName, symbol), sep = "; ") %>% 
+  column_to_rownames("Index") %>% 
+  select(starts_with("X")) %>% 
+  t() %>% as_tibble(rownames = "patient_id")
+
+
+# write_rds(Alu_beta_results_, "intermediary data/Alu_beta_results.rds")
+```
+
+# VIII. Results analysis
+## RE Summary
+Sorry for the long table, I didn't aggregate the value per gene yet!
+```{r, echo = FALSE}
+Alu_beta_results %>%
+  mutate(seqnames = factor(seqnames)) %>%
+  select(seqnames, symbol) %>%
+  tbl_summary()
+```
+
+
+<br>
+
+***
+<br>
+
+## Clinical analysis
+```{r, echo = FALSE}
+phenoclean <- phenoclean %>%
+  select(-c(starts_with("chr"))) %>%
+  remove_rownames() %>%
+  mutate(suid = Sample_Name) %>%
+  select(-c(Sample_Name, roi_num : Basename))
+
+phenoclean <- phenoclean %>%
+  mutate(bmi_cat = case_when(
+    BMI_recent < 25                                         ~ "<25",
+    BMI_recent >= 25 &
+      BMI_recent < 30                                       ~ "25-29",
+    BMI_recent >= 30 &
+      BMI_recent < 35                                       ~ "30-34",
+    BMI_recent >= 35                                        ~ "≥35"
+  ), bmi_cat =
+    factor(bmi_cat, levels = c("<25", "25-29", "30-34", "≥35"))) %>%
+  mutate(vitalstatus = case_when(
+    vitalstatus == 1                ~ 0,
+    vitalstatus == 2                ~ 1
+  ))
+
+
+
+
+Alu_beta_results1 <- Alu_beta_results %>%
+  select(Index, seqnames, repName, symbol,
+         starts_with("X")) %>%
+  unite(Ids, c("Index", "seqnames", "repName", "symbol"))
+
+map_df1 <- Alu_beta_results1 %>%
+  column_to_rownames("Ids")
+map_df2 <- map_df1 %>% t() %>% as_tibble() %>%
+  cbind(patient_id = colnames(map_df1), .) %>%
+  mutate(patient_id = str_remove(patient_id, "X"))
+
+Alu_data <- map_df2 %>%
+  full_join(phenoclean, ., by = c("Complete.Barcode" = "patient_id"))
+```
+Quick look at the data
+```{r, fig.height=12, fig.width=12, echo = FALSE}
+Alu_data
+```
+
+Another heatmap for fun!
+```{r, fig.height=12, fig.width=12, echo = FALSE}
+map_df1 <- Alu_data %>%
+  unite(Complete.Barcode, c(Complete.Barcode, bmi_cat, grade,
+                            stage, debulking_CA125, karyotype,
+                            smokcurrent), sep = "_") %>%
+  column_to_rownames("Complete.Barcode") %>%
+  select(starts_with("Alu"))
+
+
+map_df <- map_df1[,1:200] #%>% group_by(Alu) %>% mutate(type = row_number())
+
+df_map1 <- t(scale(as.matrix(map_df)))
+
+
+
+column_col = HeatmapAnnotation(bmi_cat = c(Alu_data$bmi_cat),
+                              grade = c(Alu_data$grade),
+                              stage = c(Alu_data$stage),
+                              debulking_CA125 = c(Alu_data$debulking_CA125),
+                              karyotype = c(Alu_data$karyotype),
+                              smokcurrent = c(Alu_data$smokcurrent),
+                              col = list(bmi_cat = c("<25" = "#721F81FF",
+                                                     "25-29" = "#FD9567FF",
+                                                     "30-34" = "#FEC98DFF",
+                                                     "≥35" = "#CD4071FF"),
+                                         grade = c("moderately differentiated" = "#31688EFF",
+                                                   "poorly differentiated" = "#FFEA46FF"),
+                                         stage = c("Distant" = "#721F81FF",
+                                                   "Localized" = "#0D0887FF",
+                                                   "Regional" = "#F0F921FF"),
+                                         debulking_CA125 = c("OPTIMAL" = "white",
+                                                             "SUBOPTIMAL" = "grey"),
+                                         karyotype = c("Xa" = "#440154FF",
+                                                       "XaXa" = "#3B528BFF",
+                                                       "XaXi" = "#21908CFF"),
+                                         smokcurrent = c("current smoker" = "#5DC863FF",
+                                                         "former smoker" = "#FDE725FF",
+                                                         "never smoker" = "tomato"),
+    na_col = "black"))
+row_col = rowAnnotation(Chromosome = c(Alu_beta_results$seqnames[1:200]),
+                        Gene = c(Alu_beta_results$symbol[1:200]),
+                        col = list(
+                          na_col = "black")
+)
+# Heatmap(df_map1, name = " ",
+#         show_column_names = FALSE,
+#         show_row_names = FALSE,
+#         # cluster_rows = FALSE,
+#         # cluster_columns = FALSE#,
+#         top_annotation = column_col,
+#         left_annotation = row_col,
+#         na_col = "black"
+#         )
+```
+
+<!-- ## Linear regression -->
+<!-- <span style="color: red;">Can we model a type of RE? Not sure it is something we can/should look at.</span>   -->
+<!-- ```{r} -->
+<!-- glm(Alu_data$Alu_0000198_chr1_AluSx_LINC01342 ~ -->
+<!--       refage + stage + grade + debulking_CA125 + bmi_cat, -->
+<!--     data = Alu_data -->
+<!-- ) %>% -->
+<!--   tbl_regression(exponentiate = TRUE, -->
+<!--                  intercept = TRUE) -->
+<!-- ``` -->
+
+
+
+<!-- ## Survival -->
+<!-- I think we will create categories of RE to add to survival analysis but just for a start... -->
+<!-- ```{r} -->
+<!-- tbl1 <- Alu_data %>% select(vitalstatus, timelastfu, -->
+<!--                             refage, stage, grade, -->
+<!--                             debulking_CA125, bmi_cat) %>% -->
+<!--   tbl_uvregression(method = survival::coxph, -->
+<!--                    y = (Surv(time = Alu_data$timelastfu, -->
+<!--                              event = Alu_data$vitalstatus)), -->
+<!--                    exponentiate = TRUE) %>% -->
+<!--   bold_labels() %>% italicize_levels() %>% -->
+<!--   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- tbl2 <- -->
+<!--   coxph(Surv(time = Alu_data$timelastfu, -->
+<!--              event = Alu_data$vitalstatus) ~ -->
+<!--           refage + stage + grade + debulking_CA125 + bmi_cat, -->
+<!--         data =  Alu_data) %>% -->
+<!--   tbl_regression(exponentiate = TRUE) %>% -->
+<!--   bold_p(t = .05) %>% -->
+<!--   add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- tbl_merge(list(tbl1, tbl2), tab_spanner = c("**Univariable**", "**Multivariable**")) -->
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***
+
+```{r echo=FALSE, out.width='30%'}
+knitr::include_graphics('/Users/colinccm/Documents/GitHub/Peres/lab_logo/Peres hex.png')
+```
+
