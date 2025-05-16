@@ -1,0 +1,483 @@
+---
+title: "RE methylation cluster and immune data"
+author: "Christelle Colin-Leitzinger"
+date: '`r Sys.Date()`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    theme: united
+    highlight: pygments
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+
+.figure {
+   margin-top: 25px;
+   margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+```
+
+```{r library, echo = FALSE}
+library(tidyverse)
+library(labelled)
+# library(REMP)
+# library(ComplexHeatmap)
+library(gtsummary)
+library(survival)
+library(survminer)
+theme_gtsummary_compact()
+theme_set(theme_classic())
+```
+
+<style>
+div.darkblue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-size: 38px}
+</style>
+<div class = "blue">
+
+<span style="color: white;">RE methylation cluster and HiTIMED data</span>
+
+</div>
+<br>
+
+```{r load}
+load(paste0(here::here(), "/cleaned_07082022.rda"))
+
+cluster_res_list <- read_rds(paste0(here::here(), "/clustering/MOVICS/movics_cluster_res_list_08032023.rds"))
+
+# L1_imputed <- read_rds(paste0(here::here(), "/L1_imputed.rds"))
+# Alu_imputed <- read_rds(paste0(here::here(), "/Alu_imputed.rds"))
+# ERV_imputed <- read_rds(paste0(here::here(), "/ERV_imputed.rds"))
+
+met_data <- read_rds(paste0(here::here(), "/met_data_01-23-2025.rds"))
+
+hit_data <- readxl::read_xlsx(paste0(here::here(), "/HiTIMED_round.xlsx"))
+```
+
+```{r join HIT}
+met_data <- left_join(met_data, hit_data, by = c("patient_id" = "Complete.Barcode")) %>% 
+  mutate(CD4 = CD4mem + CD4nv) %>% 
+  mutate(CD8 = CD8mem + CD8nv)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r Labeling}
+var_label(met_data) <- list(refage = "Age at diagnosis",
+                            stage_cat = "Stage",
+                            debulking_CA125 = "Debulking Status", 
+                            neoadjuvant = "Neoadjuvant chemotherapy",
+                            adjuvant = "Adjuvant chemotherapy",
+                            smokcurrent = "Current smoking status",
+                            germline_mutation_BRCA1 = "BRCA1 germline carrier", 
+                            germline_mutation_BRCA2 = "BRCA2 germline carrier", 
+                            tumor_mutation_BRCA1 = "BRCA1 tumor carrier", 
+                            tumor_mutation_BRCA2 = "BRCA2 tumor carrier",
+                            germline_mutation_TP53 = "TP53 germline carrier", 
+                            tumor_mutation_TP53 = "TP53 tumor carrier",
+                            pathogenic_germline_BRCA1 = "pathogenic BRCA1 germline carrier", 
+                            pathogenic_germline_BRCA2 = "pathogenic BRCA2 germline carrier",
+                            pathogenic_tumor_BRCA1 = "pathogenic BRCA1 tumor carrier", 
+                            pathogenic_tumor_BRCA2 = "pathogenic BRCA2 tumor carrier",
+                            pathogenic_germline_TP53 = "pathogenic TP53 germline carrier", 
+                            pathogenic_tumor_TP53 = "pathogenic TP53 tumor carrier",
+                            coca_RE_cluster = "COCA cluster")
+```
+
+# I. Table 
+```{r}
+met_data %>% 
+  select(Tumor : CD8nv, CD4, CD8,
+         coca_RE_cluster
+  ) %>% 
+  tbl_summary(by = coca_RE_cluster,
+              statistic = list(all_continuous() ~ "{mean} ({sd})"),
+              type = list(c(CD4nv) ~ "continuous")#,
+              # digits = list(all_continuous() ~ 1)
+              ) %>%
+  bold_labels() %>% add_stat_label() %>% 
+  add_p() %>% bold_p(t=.05) %>% add_overall() %>% 
+  modify_spanning_header(c(stat_1, stat_2) ~ "COCA cluster") %>% 
+  modify_header(list(label ~ "**Patient characteristics**"))
+```
+
+## Plot
+```{r}
+met_data %>% 
+  ggplot(aes(x = CD8mem, fill = coca_RE_cluster))+
+  geom_histogram()
+
+met_data %>% 
+  ggplot(aes(x = CD8nv, fill = coca_RE_cluster))+
+  geom_histogram()
+
+met_data %>% 
+  ggplot(aes(x = CD8mem, fill = coca_RE_cluster))+
+  geom_density(alpha = 0.5)
+
+met_data %>% 
+  ggplot(aes(x = CD8nv, fill = coca_RE_cluster))+
+  geom_density(alpha = 0.5)
+
+met_data %>% 
+  ggplot(aes(x = CD4, fill = coca_RE_cluster))+
+  geom_density(alpha = 0.5)
+```
+
+# II. Suplemental figure?
+### If only show T cell
+```{r}
+met_data %>% 
+  ggplot(aes(x = CD8, fill = coca_RE_cluster))+
+  geom_density(alpha = 0.5)
+```
+
+### If we want to show more cells
+<!-- this is with free y axis -->
+<!-- ```{r} -->
+<!-- met_data %>%  -->
+<!--   select(Monocyte : Bmem, Treg, -->
+<!--          CD4, CD8, -->
+<!--          coca_RE_cluster -->
+<!--   ) %>%  -->
+<!--   pivot_longer(cols = -coca_RE_cluster,  -->
+<!--                names_to = "cell_type",  -->
+<!--                values_to = "cell_count") %>%  -->
+<!--   mutate(all = "All") %>%  -->
+<!--   filter(!is.na(cell_count)) %>%  -->
+<!--   ggplot(aes(x = all, y = cell_count, color = coca_RE_cluster))+ -->
+<!--   geom_boxplot()+ -->
+<!--   labs(x = "", y = "Cell Count")+ -->
+<!--   scale_color_manual(values = c("red", "blue"), -->
+<!--                      aesthetics = c("colour", "fill"), -->
+<!--                      labels = c("Active", "Repressed"),  -->
+<!--                      name = "COCA cluster")+ -->
+<!--   facet_wrap(cell_type ~ ., scales = "free_y")+ -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks.x = element_blank()) -->
+
+<!-- met_data %>%  -->
+<!--   select(Monocyte : Bmem, Treg, -->
+<!--          CD4, CD8, -->
+<!--          coca_RE_cluster -->
+<!--   ) %>%  -->
+<!--   pivot_longer(cols = -coca_RE_cluster,  -->
+<!--                names_to = "cell_type",  -->
+<!--                values_to = "cell_count") %>%  -->
+<!--   mutate(all = "All") %>%  -->
+<!--   filter(!is.na(cell_count)) %>%  -->
+<!--   ggplot(aes(x = all, y = cell_count, color = coca_RE_cluster))+ -->
+<!--   ggtitle("using the 'width' option for violin plot = all violins have the same maximum width")+ -->
+<!--   geom_violin(scale = "width")+ -->
+<!--   labs(x = "", y = "Cell Count")+ -->
+<!--   scale_color_manual(values = c("red", "blue"), -->
+<!--                      aesthetics = c("colour", "fill"), -->
+<!--                      labels = c("Active", "Repressed"),  -->
+<!--                      name = "COCA cluster")+ -->
+<!--   facet_wrap(cell_type ~ ., scales = "free_y")+ -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks.x = element_blank()) -->
+
+<!-- met_data %>%  -->
+<!--   select(Monocyte : Bmem, Treg, -->
+<!--          CD4, CD8, -->
+<!--          coca_RE_cluster -->
+<!--   ) %>%  -->
+<!--   pivot_longer(cols = -coca_RE_cluster,  -->
+<!--                names_to = "cell_type",  -->
+<!--                values_to = "cell_count") %>%  -->
+<!--   mutate(all = "All") %>%  -->
+<!--   filter(!is.na(cell_count)) %>%  -->
+<!--   ggplot(aes(x = all, y = cell_count, color = coca_RE_cluster))+ -->
+<!--   ggtitle("using the 'count' option for violin plot = areas are scaled proportionally to the number of observations")+ -->
+<!--   geom_violin(scale = "count")+ -->
+<!--   labs(x = "", y = "Cell Count")+ -->
+<!--   scale_color_manual(values = c("red", "blue"), -->
+<!--                      aesthetics = c("colour", "fill"), -->
+<!--                      labels = c("Active", "Repressed"),  -->
+<!--                      name = "COCA cluster")+ -->
+<!--   facet_wrap(cell_type ~ ., scales = "free_y")+ -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks.x = element_blank()) -->
+
+<!-- met_data %>%  -->
+<!--   select(#Monocyte : Bmem,  -->
+<!--          Treg, CD4, CD8, -->
+<!--          coca_RE_cluster -->
+<!--   ) %>%  -->
+<!--   pivot_longer(cols = -coca_RE_cluster,  -->
+<!--                names_to = "cell_type",  -->
+<!--                values_to = "cell_count") %>%  -->
+<!--   mutate(all = "All") %>%  -->
+<!--   filter(!is.na(cell_count)) %>%  -->
+<!--   ggplot(aes(x = all, y = cell_count, color = coca_RE_cluster))+ -->
+<!--   ggtitle("violin + boxplot")+ -->
+<!--   geom_violin()+ -->
+<!--   geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "grey", aes(group = interaction(coca_RE_cluster, cell_type)))+ -->
+<!--   labs(x = "", y = "Cell Count")+ -->
+<!--   scale_color_manual(values = c("red", "blue"), -->
+<!--                      aesthetics = c("colour", "fill"), -->
+<!--                      labels = c("Active", "Repressed"),  -->
+<!--                      name = "COCA cluster")+ -->
+<!--   facet_wrap(cell_type ~ ., ncol = 1, -->
+<!--              scales = "free_x", switch = "y", axes = "all_x")+ -->
+<!--   coord_flip() -->
+<!--   theme(axis.text.y = element_blank(), -->
+<!--         axis.ticks.y = element_blank()) -->
+<!-- ``` -->
+
+
+
+
+
+
+```{r}
+met_data %>% 
+  select(
+         Treg, CD4, CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  # mutate(all = "All") %>% 
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x = cell_type, y = cell_count, color = coca_RE_cluster))+
+  ggtitle("long violin + boxplot")+
+  geom_violin(scale = "width")+
+  # ylim(0, 1)
+  # geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "grey", aes(group = interaction(coca_RE_cluster, cell_type)))+
+  # labs(x = "", y = "Cell Count")+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"),
+                     labels = c("Active", "Repressed"),
+                     name = "COCA cluster")
+  # coord_flip()+
+  facet_wrap(cell_type ~ .)
+  
+met_data %>% 
+  select(#Monocyte : Bmem, 
+         Treg, CD4, CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  # mutate(all = "All") %>% 
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x = cell_type, y = cell_count, color = coca_RE_cluster))+
+  ggtitle("long violin + boxplot")+
+  geom_violin(scale = "width")+
+  # ylim(0, 1)
+  # geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "grey", aes(group = interaction(coca_RE_cluster, cell_type)))+
+  # labs(x = "", y = "Cell Count")+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"),
+                     labels = c("Active", "Repressed"),
+                     name = "COCA cluster")
+  # coord_flip()+
+  facet_wrap(cell_type ~ .)
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+  
+  met_data %>% 
+  select(#Monocyte : Bmem, 
+         Treg, CD4, CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  mutate(all = "All") %>%
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x = all, y = cell_count, color = coca_RE_cluster))+
+  ggtitle("violin + boxplot")+
+  geom_violin(scale = "width")+
+  # ylim(0, 1)
+  geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "grey", aes(group = interaction(coca_RE_cluster, cell_type)))+
+  # labs(x = "", y = "Cell Count")+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"),
+                     labels = c("Active", "Repressed"),
+                     name = "COCA cluster")+
+  # coord_flip()+
+  facet_wrap(cell_type ~ .)
+  
+  
+  met_data %>% 
+  select(Treg, CD4T = CD4, CD8T = CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  mutate(all = "All") %>%
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x = cell_type, y = cell_count, color = coca_RE_cluster))+
+  geom_violin(scale = "width")+
+  # ylim(0, 17)+
+  geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "darkgrey", 
+               aes(group = interaction(coca_RE_cluster, cell_type)))+
+  labs(x = "", y = "Cell proportion estimate")+
+    ylim(0, 20)+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"),
+                     labels = c("Active", "Repressed"),
+                     name = "COCA cluster") + 
+    stat_compare_means(label = "p.format", show.legend = FALSE, size = 3, label.y = 18)
+  
+  ggsave("Figure S6 immune cell proportion.pdf",
+       width = 5,
+       height = 5, 
+       dpi = 600)
+  
+  theme_set(theme_grey()) # Call theme_grey then theme_classic in the plot code to eliminate ggbreak extra outer lines
+  
+  library(ggbreak)
+  met_data %>% 
+  select(Treg, CD4T = CD4, CD8T = CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  mutate(all = "All") %>%
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x = cell_type, y = cell_count, color = coca_RE_cluster))+
+  geom_violin(scale = "width")+
+  # ylim(0, 17)+
+  geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "darkgrey", 
+               aes(group = interaction(coca_RE_cluster, cell_type)))+
+  labs(x = "", y = "Cell proportion estimate", tag = "Figure S6")+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"),
+                     labels = c("Active", "Repressed"),
+                     name = "COCA cluster")+
+    expand_limits(y = c(0, 18))+
+    # scale_y_cut(breaks = c(10.5))
+    scale_y_break(c(10.5, 16), 
+                  ticklabels=c(16, 18)
+                  ) +
+    stat_compare_means(label = "p.format", show.legend = FALSE, size = 3, label.y = 17.2)+
+    theme_classic()+
+    theme(plot.title.position = "plot")
+
+ggsave("Figure S6 immune cell proportion y break with title.pdf",
+       width = 6,
+       height = 5, 
+       dpi = 600)
+
+theme_set(theme_classic())
+```
+
+
+
+
+
+
+<!-- this is with fix axis -->
+<!-- ```{r} -->
+<!-- met_data %>%  -->
+<!--   select(Monocyte : Bmem, Treg, -->
+<!--          CD4, CD8, -->
+<!--          coca_RE_cluster -->
+<!--   ) %>%  -->
+<!--   pivot_longer(cols = -coca_RE_cluster,  -->
+<!--                names_to = "cell_type",  -->
+<!--                values_to = "cell_count") %>%  -->
+<!--   mutate(all = "All") %>%  -->
+<!--   filter(!is.na(cell_count)) %>%  -->
+<!--   ggplot(aes(x = all, y = cell_count, color = coca_RE_cluster))+ -->
+<!--   geom_boxplot()+ -->
+<!--   labs(x = "", y = "Cell Count")+ -->
+<!--   facet_wrap(cell_type ~ .)+ -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks.x = element_blank()) -->
+<!-- ``` -->
+
+### ridgeline
+```{r}
+library(ggridges)
+met_data %>% 
+  select(Monocyte : Bmem, Treg,
+         CD4, CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  mutate(all = "All") %>% 
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x=cell_count, y=cell_type, fill=coca_RE_cluster, color=coca_RE_cluster)) +
+  geom_density_ridges(alpha=0.3, scale = 0.95, draw_baseline = FALSE)+
+  labs(x= "Cell Count", y= "")+
+  scale_y_discrete(expand = c(0, 0.2))+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"))+
+  theme(legend.position = "bottom")
+```
+
+a little prettier but need to change the cell name yet
+```{r}
+met_data %>% 
+  select(Monocyte : Bmem, Treg,
+         CD4, CD8,
+         coca_RE_cluster
+  ) %>% 
+  pivot_longer(cols = -coca_RE_cluster, 
+               names_to = "cell_type", 
+               values_to = "cell_count") %>% 
+  mutate(all = "All") %>% 
+  filter(!is.na(cell_count)) %>% 
+  ggplot(aes(x=cell_count, y=cell_type, fill=coca_RE_cluster, color=coca_RE_cluster)) +
+  geom_density_ridges(alpha=0.2, scale = 0.95, draw_baseline = FALSE)+
+  labs(x= "Cell Count", y= "")+
+  scale_y_discrete(expand = c(0, 0.2))+
+  scale_color_manual(values = c("red", "blue"),
+                     aesthetics = c("colour", "fill"),
+                     labels = c("Active", "Repressed"), 
+                     name = "COCA cluster")+
+  xlim(-2, 20)+
+  theme(legend.position = "bottom")
+```
+Questions?   
+- Do we want all of the cell types?   
+- If yes, I would remove naive B cell and just have 1 curve for B cell... 
+The density plot is misleading as no naive B cells are detected in reality.   
+- I cropped the x axis and put the legend at the bottom. Not sure we can crop it more as the memory B cell has a peak after 15.   
+- What are the units?   
+
+
+
+
+
+
+
+
