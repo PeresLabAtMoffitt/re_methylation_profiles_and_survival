@@ -1,0 +1,1316 @@
+---
+title: "Bayesian Consensus Clustering and More - with imputation"
+author: "Christelle Colin-Leitzinger"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: no
+    theme: united
+    code_folding: hide
+    highlight: pygments
+    df_print: paged
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+<style type="text/css">
+
+.figure {
+   margin-top: 25px;
+   margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+```
+
+```{r library, echo = FALSE}
+library(tidyverse)
+library(REMP)
+# library(mice)
+library(LaplacesDemon)
+library(ComplexHeatmap)
+# library(ggridges)
+
+# theme_gtsummary_compact()
+theme_set(theme_classic())
+```
+ConsensusClusterPlus Paper:  
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2881355/
+
+Algorithm
+ConsensusClusterPlus extends the CC algorithm and is briefly described here. The algorithm begins by subsampling a proportion of items and a proportion of features from a data matrix. Each subsample is then partitioned into up to k groups by a user-specified clustering algorithm: agglomerative hierarchical clustering, k-means or a custom algorithm. This process is repeated for a specified number of repetitions. Pairwise consensus values, defined as ‘the proportion of clustering runs in which two items are [grouped] together’ (Monti et al., 2003), are calculated and stored in a consensus matrix (CM) for each k. Then for each k, a final agglomerative hierarchical consensus clustering using distance of 1−consensus values is completed and pruned to k groups, which are called consensus clusters.
+
+```{r load data}
+# remp_res_Alu <- read_rds(paste0(here::here(), "/intermediary data/remp_results_Alu.rds"))
+annot_res_Alu <- read_rds(paste0(here::here(), "/intermediary data/remp_res_Alu_annotation_07262023.rds"))
+# remp_res_ERV <- read_rds(paste0(here::here(), "/intermediary data/remp_results_ERV.rds"))
+annot_res_ERV <- read_rds(paste0(here::here(), "/intermediary data/remp_res_ERV_annotation_07262023.rds"))
+# remp_res_L1 <- read_rds(paste0(here::here(), "/intermediary data/remp_results_L1.rds"))
+annot_res_L1 <- read_rds(paste0(here::here(), "/intermediary data/remp_res_L1_annotation_07262023.rds"))
+```
+
+# Prep data
+Prep each RE type data (commented code only for L1).  
+Because I have too many NAs in the trimmed and annotated data, I start the clustering on the data before trimming.  
+I perform the clustering only on the RE present in the annotated data.  
+Another way could be to impute the data. `r emo::ji("question_mark")` <span style="color: red;">Would that be better?</span>  
+I scale the data using the base R scale function. `r emo::ji("question_mark")` <span style="color: red;">This means they are not scaled between -1 and 1 for example, Should I do that or another way?</span>
+```{r prep individual data, class.source = 'fold-show'}
+annot_L1_beta_results <- rempB(annot_res_L1)
+# annot_L1_beta_results <- annot_L1_beta_results %>% as_tibble(rownames = "re_index")
+
+annot_ERV_beta_results <- rempB(annot_res_ERV)
+# annot_ERV_beta_results <- annot_ERV_beta_results %>% as_tibble(rownames = "re_index")
+
+annot_Alu_beta_results <- rempB(annot_res_Alu)
+# annot_Alu_beta_results <- annot_Alu_beta_results %>% as_tibble(rownames = "re_index")
+
+# # L1
+L1_df <- annot_L1_beta_results %>% as.matrix()
+  # column_to_rownames("re_index") %>%
+  # t() #%>% #   scale() %>% 
+  # as_tibble(rownames = "patient_id")
+
+summary(L1_df)[,1:5]
+
+# L1_imputed <- L1_df %>%
+#   column_to_rownames("Index") %>%
+#   t() %>%
+#   scale() %>% t()
+
+# Alu
+Alu_df <- annot_Alu_beta_results %>% as.matrix()
+  # column_to_rownames("re_index") %>%
+  # t() #%>% #   scale() %>% 
+  # as_tibble(rownames = "patient_id")
+# ERV
+ERV_df <- annot_ERV_beta_results %>% as.matrix()
+  # column_to_rownames("re_index") %>%
+  # t() #%>% #   scale() %>% 
+  # as_tibble(rownames = "patient_id")
+```
+
+```{r imputation mice}
+# imp_data <- mice(L1_df, m=1, maxit=0, meth="pmm", seed=123, printFlag=T)
+# summary(imp_data)
+# imp_data$predictorMatrix[,1]
+# imp_data$predictorMatrix[1:5,1:3] 
+# imp_data$predictorMatrix[1,1:5]
+# which(imp_data$predictorMatrix[1,] != 1)
+# which((imp_data$predictorMatrix[,1]) != 0)
+# 
+# Pred <- imp_data$predictorMatrix
+# Pred["patient_id",] <- 0
+# Pred[1:5,1:3]
+# 
+# tic()
+# imp_data <- mice(L1_df, m=5, maxit=50, 
+#                 predictorMatrix=Pred,
+#                 seed=123, printFlag=F)
+# toc()
+# # Alu
+# imp_data <- mice(Alu_df, m=1, maxit=0, meth="pmm", seed=123, printFlag=T)
+# summary(imp_data)
+# imp_data$predictorMatrix[,1]
+# imp_data$predictorMatrix[1:5,1:3] 
+# imp_data$predictorMatrix[1,1:5]
+# which(imp_data$predictorMatrix[1,] != 1)
+# which((imp_data$predictorMatrix[,1]) != 0)
+# 
+# Pred <- imp_data$predictorMatrix
+# Pred["patient_id",] <- 0
+# Pred[1:5,1:3]
+# 
+# tic()
+# imp_data <- mice(Alu_df, m=5, maxit=50, 
+#                 predictorMatrix=Pred,
+#                 seed=123, printFlag=F)
+# toc()
+# # ERV
+# imp_data <- mice(ERV_df, m=1, maxit=0, meth="pmm", seed=123, printFlag=T)
+# summary(imp_data)
+# imp_data$predictorMatrix[,1]
+# imp_data$predictorMatrix[1:5,1:3] 
+# imp_data$predictorMatrix[1,1:5]
+# which(imp_data$predictorMatrix[1,] != 1)
+# which((imp_data$predictorMatrix[,1]) != 0)
+# 
+# Pred <- imp_data$predictorMatrix
+# Pred["patient_id",] <- 0
+# Pred[1:5,1:3]
+# 
+# tic()
+# imp_data <- mice(ERV_df, m=5, maxit=50, 
+#                 predictorMatrix=Pred,
+#                 seed=123, printFlag=F)
+# toc()
+```
+
+```{r betasimpute fct}
+# The rows are the CpGs and the patients are the columns. The imputation will follow the rows searching for the closest methylation pattern in the columns.
+
+betasimpute<-function (mat, rmcr = FALSE, rthre = 0.05,
+          cthre = 0.05, impute = TRUE, imputebyrow = TRUE, fastimpute = FALSE,
+          ...)
+{
+  if (impute) {
+    requireNamespace("impute")
+  }
+  if (!(is.numeric(mat) & is.matrix(mat))) {
+    stop("Input data must be a\n     numeric matrix")
+  }
+  if (rmcr) {
+    if (nrow(mat) > ncol(mat)) {
+      thre = min(2 * cthre, 0.3)
+      cpercna = apply(is.na(mat), 2, sum)/nrow(mat)
+      tmat = mat[, cpercna < thre]
+      rpercna = apply(is.na(tmat), 1, sum)/ncol(tmat)
+      rthre = max(rthre, min(3, ncol(tmat))/ncol(tmat))
+      tmat = mat[rpercna < rthre, ]
+      nrout = sum(rpercna >= rthre)
+      cpercna = apply(is.na(tmat), 2, sum)/nrow(tmat)
+      cthre = max(cthre, min(3, nrow(tmat))/nrow(tmat))
+      mat = tmat[, cpercna < cthre]
+      ncout = sum(cpercna >= cthre)
+      cat(nrout, " rows with percentage of missing data greater than ",
+          rthre, " were excluded\n")
+      cat(ncout, " columns with percentage of missing data greater than ",
+          cthre, " were excluded\n")
+    }
+    else {
+      thre = min(2 * rthre, 0.3)
+      rpercna = apply(is.na(mat), 1, sum)/ncol(mat)
+      tmat = mat[rpercna < thre, ]
+      cpercna = apply(is.na(tmat), 2, sum)/nrow(tmat)
+      cthre = max(cthre, min(3, nrow(tmat))/nrow(tmat))
+      tmat = mat[, cpercna < cthre]
+      ncout = sum(cpercna >= cthre)
+      rpercna = apply(is.na(tmat), 1, sum)/ncol(tmat)
+      rthre = max(rthre, min(3, ncol(tmat))/ncol(tmat))
+      mat = tmat[rpercna < rthre, ]
+      nrout = sum(rpercna >= rthre)
+      cat(nrout, " rows with percentage of missing data greater than ",
+          rthre, " were excluded\n")
+      cat(ncout, " columns with percentage of missing data greater than ",
+          cthre, " were excluded\n")
+    }
+  }
+  if (impute) {
+    if (imputebyrow) {
+      mat = t(mat)
+    }
+    if (fastimpute) {
+      mm = apply(mat, 2, function(x) median(x, na.rm = TRUE))
+      idx = which(is.na(mat), arr.ind = TRUE)
+      for (i in 1:nrow(idx)) {
+        mat[idx[i, 1], idx[i, 2]] = mm[idx[i, 2]]
+      }
+    }
+    else {
+      psize = 1e+05
+      if (ncol(mat) > psize) {
+        npart = floor(ncol(mat)/psize)
+        for (i in 1:npart) {
+          n1 = psize * (i - 1) + 1
+          n2 = psize * i
+          if (i == npart) {
+            n2 = ncol(mat)
+          }
+          mat1 = mat[, n1:n2]
+          resu = impute::impute.knn(mat1, ...)
+          mat[, n1:n2] = resu$data
+        }
+      }
+      else {
+        resu = impute::impute.knn(mat, ...)
+        mat = resu$data
+      }
+    }
+    if (imputebyrow) {
+      mat = t(mat)
+    }
+  }
+  mat
+}
+```
+
+
+```{r beta impute}
+L1_imputed <- betasimpute(L1_df, impute=TRUE) #%>%
+  # as_tibble(rownames = "patient_id")
+ERV_imputed <- betasimpute(ERV_df, impute=TRUE) #%>%
+  # as_tibble(rownames = "patient_id")
+Alu_imputed <- betasimpute(Alu_df, impute=TRUE) #%>%
+  # as_tibble(rownames = "patient_id")
+
+write_rds(L1_imputed, "L1_imputed.rds")
+write_rds(Alu_imputed, "Alu_imputed.rds")
+write_rds(ERV_imputed, "ERV_imputed.rds")
+L1_imputed <- read_rds(paste0(here::here(), "/L1_imputed.rds"))
+Alu_imputed <- read_rds(paste0(here::here(), "/Alu_imputed.rds"))
+ERV_imputed <- read_rds(paste0(here::here(), "/ERV_imputed.rds"))
+
+```
+What does it mean  
+Done cluster 4437  
+Cluster size 3173 broken into 1356 1817  
+Done cluster 1356  
+Cluster size 1817 broken into 771 1046  
+Done cluster 771  
+????
+
+
+# I. BCC 
+I follow what is advised on the BCC package  
+
+## Select the most informative features
+`r emo::ji("question_mark")` <span style="color: red;">I am not sure if I should do it separately for each RE and then join them instead...</span>  
+Keep the 5000 most informative feature using mad. `r emo::ji("question_mark")` <span style="color: red;">Is 5000 too much?</span>
+```{r select the most informative features, class.source = 'fold-show'}
+# Reduce the data set to the top 5,000 most variable genes, measured by median absolute deviation (MAD).
+
+# L1_imputed1 <- L1_imputed %>% as_tibble(rownames = "patient_id")
+
+L1_mads <- apply((L1_imputed), 1, mad) 
+L1_df <- L1_imputed[rev(order(L1_mads))[1:5000],]
+L1_var <- apply(L1_imputed, 1, var) 
+L1_df_var <- L1_imputed[rev(order(L1_var))[1:5000],]
+
+Alu_mads <- apply(Alu_imputed, 1, mad) 
+Alu_df <- Alu_imputed[rev(order(Alu_mads))[1:5000],]
+
+ERV_mads <- apply(ERV_imputed, 1, mad) 
+ERV_df <- ERV_imputed[rev(order(ERV_mads))[1:5000],]
+```
+
+Compare mad vs var
+```{r}
+a <- L1_df %>% 
+  as_tibble(rownames = "re_index") %>% select(re_index) %>% 
+  mutate(data = "in_mads") %>% 
+  full_join(., L1_df_var %>% 
+              as_tibble(rownames = "re_index") %>% select(re_index) %>% 
+  mutate(data = "in_var"),
+  by = "re_index"
+  )
+print(paste("Between using mad and var, there is", 
+            sum(is.na(a$data.x)), 
+            "CpGs picked differently over 5000."))
+```
+
+## Transform the data with agglomerative hierarchical clustering algorithm using Pearson correlation distance
+```{r Transform the data, class.source = 'fold-show'}
+ready_L1_df <- sweep(L1_df, 1, apply(L1_df, 1, median,na.rm=T))
+ready_Alu_df <- sweep(Alu_df, 1, apply(Alu_df, 1, median,na.rm=T))
+ready_ERV_df <- sweep(ERV_df, 1, apply(ERV_df, 1, median,na.rm=T))
+```
+
+
+
+
+
+
+## Start with Bayesian Consensus Clustering with BCC downloaded code (no way of installing the package).  
+`r emo::ji("warning")` It doesn't give any help to choose the best k number of cluster!?  
+<!-- I scaled the data using the scale() function before clustering. I didn't set it up to be from -1 to 1... <span style="color: red;">Should I?</span>   -->
+#### Use the concatenated code to create elbow plot just to see how many k if put all the data together.
+```{r}
+# library(ConsensusClusterPlus)
+title <- "/Users/colinccm/Documents/GitHub/Peres/methylomics_disparities/clustering/temp_L1_consensus_plots"
+# results <- ConsensusClusterPlus(
+#   as.matrix(a), # data to use
+#   maxK = 10, # a maximum evalulated k of 20 so that cluster counts of 2,3,4,...,20 are evaluated
+#   reps = 1000, # 1000 resamplings
+#   pItem = 0.8, # 80% item resampling
+#   pFeature = 1, # 80% gene resampling
+#   title = title, # output
+#   clusterAlg = "hc", # hierarchical clustering
+#   distance = "pearson",
+#   seed = 123, plot = "pngBMP"
+#   )
+
+knitr::include_graphics(paste0(title, '/consensus012.png'))
+```
+
+
+```{r run BCC, class.source = 'fold-show'}
+# source(paste0(here::here(), '/R/BCC.r'))
+
+# bcc_res_4 <- BCC(X= list(Alu_imputed, ERV_imputed, L1_imputed),
+#     K= 4) # takes about 2h for 4k
+# bcc_res_4_limiteddata <- BCC(X= list(ready_Alu_df, ready_ERV_df, ready_L1_df),
+#     K= 4)
+# write_rds(bcc_res_4, "bcc_scaled_res4k_05172023.rds")
+# write_rds(bcc_res_4_limiteddata, "bcc_res4k_scaled_limiteddata_05242023.rds")
+# rm(AlignClusters, BCC, logSum)
+# bcc_res_4 <- read_rds(paste0(here::here(), "/bcc_res4k_scaled_limiteddata_05242023.rds"))
+
+# NEW
+# bcc_res_4 <- BCC(X= list(ready_Alu_df, ready_ERV_df, ready_L1_df),
+#                  K= 2) # 15 min
+# write_rds(bcc_res_4, "clustering/BCC/bcc_res2k_limiteddata_08022023.rds")
+bcc_res_4 <- read_rds(paste0(here::here(), "/clustering/BCC/bcc_res2k_limiteddata_08022023.rds"))
+
+
+
+# Note for myself
+# bcc_res_4$Alpha
+# bcc_res_4$AlphaBounds
+# bcc_res_4$Cbest
+# # Extract in which cluster [,1] [,2] [,3] ... the patient belong == 1 for each data [[1]] [[2]] [[3]] ...
+# bcc_res_4$Lbest
+# bcc_res_4$Lbest[[1]] # for the Alu_imputed data
+# bcc_res_4$Lbest[[2]][201,] # for variable 201 in ERV data
+# bcc_res_4$Lbest[[3]] # for the L1_imputed data
+# bcc_res_4$AlphaVec[1000] # 1000 is the last value / is the NumDraws
+```
+
+```{r create cluster var}
+# Create cluster variables
+alu_bcc <- bcc_res_4$Lbest[[1]] %>% 
+  as_tibble() %>% 
+  # cbind(patient_id = patient_id, .) %>% 
+  mutate(bcc_alu = case_when(
+    V1 == 1        ~ "1",
+    V2 == 1        ~ "2"#,
+    # V3 == 1        ~ "3",
+    # V4 == 1        ~ "4"
+  ))
+  
+erv_bcc <- bcc_res_4$Lbest[[2]] %>% 
+  as_tibble() %>% 
+  # cbind(patient_id = patient_id, .) %>% 
+  mutate(bcc_erv = case_when(
+    V1 == 1        ~ "1",
+    V2 == 1        ~ "2"
+  ))
+l1_bcc <- bcc_res_4$Lbest[[3]] %>% 
+  as_tibble() %>% 
+  # cbind(patient_id = patient_id, .) %>% 
+  mutate(bcc_l1 = case_when(
+    V1 == 1        ~ "1",
+    V2 == 1        ~ "2"
+  ))
+overall_bcc <- bcc_res_4$Cbest %>% 
+  as_tibble() %>% 
+  # cbind(patient_id = patient_id, .) %>% 
+  mutate(overall_bcc = case_when(
+    V1 == 1        ~ "1",
+    V2 == 1        ~ "2"
+  ))
+
+bayesclus <- bind_cols(patient_id = colnames(ERV_df),
+                       alu_bcc %>% select(bcc_alu),
+                       erv_bcc %>% select(bcc_erv),
+                       l1_bcc %>% select(bcc_l1),
+                       overall_bcc %>% select(overall_bcc))
+
+```
+
+
+```{r prep rownames, echo = FALSE}
+# annot_Alu_beta_results <- rempB(annot_res_Alu)
+annot_Alu_beta_results <- annot_Alu_beta_results %>% as_tibble() %>%
+  cbind(Index = annot_res_Alu@rowRanges@elementMetadata$RE.Index, .) %>%
+  column_to_rownames("Index")
+annot_Alu_beta_results1 <- annot_Alu_beta_results %>%
+  t() %>% 
+  as_tibble(rownames = "patient_id")
+
+# annot_L1_beta_results <- rempB(annot_res_L1)
+annot_L1_beta_results <- annot_L1_beta_results %>% as_tibble() %>%
+  cbind(Index = annot_res_L1@rowRanges@elementMetadata$RE.Index, .) %>%
+  column_to_rownames("Index")
+annot_L1_beta_results1 <- annot_L1_beta_results %>%
+  t() %>% 
+  as_tibble(rownames = "patient_id")
+
+# annot_ERV_beta_results <- rempB(annot_res_ERV)
+annot_ERV_beta_results <- annot_ERV_beta_results %>% as_tibble() %>%
+  cbind(Index = annot_res_ERV@rowRanges@elementMetadata$RE.Index, .) %>%
+  column_to_rownames("Index")
+annot_ERV_beta_results1 <- annot_ERV_beta_results %>%
+  t() %>% 
+  as_tibble(rownames = "patient_id")
+```
+
+
+```{r merge annotated data with BCC cluster}
+# Join with data
+beta_clusters <- 
+  full_join(bayesclus, annot_Alu_beta_results1,
+            by= "patient_id") %>% 
+  full_join(., annot_L1_beta_results1,
+            by= "patient_id") %>% 
+  full_join(., annot_ERV_beta_results1,
+            by= "patient_id")
+```
+
+# Heatmap BCC
+Plot only the first 1000 feature (rows - not the best 1000 of the best 5000)  
+`r emo::ji("question_mark")` <span style="color: red;">I am scaling again but should I?</span>
+```{r BCC alu heatmap}
+map_Alu <- beta_clusters %>%
+  select(patient_id, #cluster_Alu, cluster_ERV, cluster_L1, 
+         starts_with("Alu_")
+         ) %>% 
+  # unite(patient_id, c(patient_id, cluster_L1, cluster_Alu, cluster_ERV), sep = "; c") %>%
+  # select(-c(cluster_Alu, cluster_ERV)) %>% 
+  column_to_rownames("patient_id")
+df_Alu <- t(scale((as.matrix(map_Alu))))[1:1000,] # scale for standardizing the data to make variables comparable
+
+column_ho = HeatmapAnnotation(cluster_Alu = c(bayesclus$bcc_alu),
+                              cluster_L1 = c(bayesclus$bcc_l1),
+                              cluster_ERV = c(bayesclus$bcc_erv),
+                              cluster_BCC = c(bayesclus$overall_bcc),
+                              
+                              col = list(cluster_Alu = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_L1 = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_ERV = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_BCC = c("1" = "#21908CFF", "2" = "#FDE725FF")
+                                         ),
+    na_col = "black")
+heatmap_panel_alu <- Heatmap(df_Alu, name = "Alu RE hypermethylation",
+                             na_col = "black",
+                             show_column_names = FALSE,
+                             show_row_names = FALSE,
+                             column_title = "patients",
+                             column_title_side = "bottom",
+                             # cluster_rows = FALSE,
+                             # cluster_columns = FALSE,
+                             top_annotation = column_ho
+)
+```
+
+
+```{r BCC L1 heatmap}
+map_L1 <- beta_clusters %>%
+  select(patient_id,
+         starts_with("L1_")
+         ) %>% 
+  column_to_rownames("patient_id")
+df_L1 <- t(scale((as.matrix(map_L1))))[1:1000,] # scale for standardizing the data to make variables comparable
+
+column_ho = HeatmapAnnotation(cluster_Alu = c(bayesclus$bcc_alu),
+                              cluster_L1 = c(bayesclus$bcc_l1),
+                              cluster_ERV = c(bayesclus$bcc_erv),
+                              cluster_BCC = c(bayesclus$overall_bcc),
+                              
+                              col = list(cluster_Alu = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_L1 = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_ERV = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_BCC = c("1" = "#21908CFF", "2" = "#FDE725FF")
+                                         ),
+    na_col = "black")
+heatmap_panel_l1 <- Heatmap(df_L1, name = "L1 RE hypermethylation",
+                            na_col = "black",
+                            show_column_names = FALSE,
+                            show_row_names = FALSE,
+                            column_title = "patients",
+                            column_title_side = "bottom",
+                            # cluster_rows = FALSE,
+                            # cluster_columns = FALSE,
+                            top_annotation = column_ho
+)
+```
+
+```{r BCC ERV heatmap}
+map_ERV <- beta_clusters %>%
+  select(patient_id,
+         starts_with("ERV_")
+         ) %>% 
+  column_to_rownames("patient_id")
+df_ERV <- t(scale((as.matrix(map_ERV))))[1:1000,] # scale for standardizing the data to make variables comparable
+
+column_ho = HeatmapAnnotation(cluster_Alu = c(bayesclus$bcc_alu),
+                              cluster_L1 = c(bayesclus$bcc_l1),
+                              cluster_ERV = c(bayesclus$bcc_erv),
+                              cluster_BCC = c(bayesclus$overall_bcc),
+                              
+                              col = list(cluster_Alu = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_L1 = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_ERV = c("1" = "#932667FF", "2" = "grey",
+                                                         "3" = "#21908CFF", "4"= "#FDE725FF"),
+                                         cluster_BCC = c("1" = "#21908CFF", "2" = "#FDE725FF")
+                                         ),
+    na_col = "black")
+heatmap_panel_erv <- Heatmap(df_ERV, name = "ERV RE hypermethylation",
+                            na_col = "black",
+                            show_column_names = FALSE,
+                            show_row_names = FALSE,
+                            column_title = "patients",
+                            column_title_side = "bottom",
+                            # cluster_rows = FALSE,
+                            # cluster_columns = FALSE,
+                            top_annotation = column_ho
+)
+```
+
+```{r patchwork heatmap, fig.width=12, fig.height=15}
+library(ggplotify)
+library(patchwork)
+as.ggplot(heatmap_panel_alu) / as.ggplot(heatmap_panel_l1) /
+  as.ggplot(heatmap_panel_erv)
+
+```
+
+
+<!-- ```{r BCC ggridge, fig.width=12, fig.height=8} -->
+<!-- beta_clusters %>% -->
+<!--   # remove patient with less reliable CpG data -->
+<!--   filter(!str_detect(patient_id, remove_id$patient_id)) %>% -->
+<!--   pivot_longer(cols = -c(patient_id, bcc_alu, bcc_erv, bcc_l1), -->
+<!--                names_to = "Index",  -->
+<!--                values_to = "RE_value") %>%  -->
+<!--   pivot_longer(cols = c(starts_with("bcc")), -->
+<!--                names_to = "bcc_cluster",  -->
+<!--                values_to = "cluster_value") %>%  -->
+<!--   mutate(RE_type = str_extract(Index, "Alu|L1|ERV")) %>%  -->
+<!--   ggplot(aes(x=RE_value, y=RE_type, fill=cluster_value)) + -->
+<!--   geom_density_ridges(alpha=0.5)+ -->
+<!--   theme_ridges()+ -->
+<!--   facet_wrap(.~ bcc_cluster) -->
+<!-- ``` -->
+<br>
+<br>
+
+***
+
+<br>
+
+# II.Clustering using iClusterPlus
+I perform the clustering only on the 5000 most informative RE presents in the annotated data (same data as before).  
+chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.mskcc.org/sites/default/files/node/18547/documents/iclusterplususerguide_0.pdf  
+<span style="color: red;">I am still having some trouble with this package.</span>
+
+```{r icluster, class.source = 'fold-show'}
+# BiocManager::install("iClusterPlus")
+library(iClusterPlus)
+
+# Use the same data
+# ready_Alu_df, ready_ERV_df, ready_L1_df
+
+# Loop through k 2 to 11 for elbow plot # Run 10h
+# set.seed(123)
+# for(k in 1:10){
+#   cv.fit = tune.iClusterPlus(cpus = 12,
+#                              dt1 = t(ready_Alu_df), # data must have samples as rows
+#                              dt2 = t(ready_ERV_df),
+#                              dt3 = t(ready_L1_df),
+#                              type = c("gaussian","gaussian","gaussian"),
+#                              n.lambda = NULL,
+#                              K = k,
+#                              maxiter = 20)
+#   save(cv.fit,file = paste("cv.fit.k",k,".Rdata",sep = ""))
+# }
+output=alist()
+
+files=list.files(
+  path = here::here(),
+  pattern = "cv.fit",
+  recursive = FALSE,
+  full.names = TRUE)
+
+for(i in 1:length(files)){
+  load(files[i])
+  output[[i]]=cv.fit
+  }
+nLambda=nrow(output[[1]]$lambda)
+nK=length(output)
+BIC=getBIC(output)
+devR=getDevR(output)
+
+minBICid=apply(BIC,2,which.min)
+devRatMinBIC=rep(NA,nK)
+for(i in 1:nK){
+  devRatMinBIC[i]=devR[minBICid[i],i]
+  }
+
+plot(1:(nK+1),c(0,devRatMinBIC),type="b",xlab="Numberofclusters(K+1)",
+     ylab="%ExplainedVariation")
+
+```
+
+Text in pdf
+The optimal k(number of latent variables) is where the curve of %Explained variation levels off.
+By examining the percentEV.png, we choose to present the three-cluster results. Get cluster membership
+(note number of clusters is k+1):
+For us the best is 3 so 2+1
+
+
+```{r icluster 2, class.source = 'fold-show'}
+clusters=getClusters(output)
+# rownames(clusters)=rownames(gbm.exp)
+colnames(clusters)=paste("K=",2:(length(output)+1),sep="")
+#write.table(clusters,file="clusterMembership.txt",sep=' \t' ,quote=F)
+k=2
+best.cluster=clusters[,k]
+best.cluster
+best.fit=output[[k]]$fit[[which.min(BIC[,k])]]
+
+```
+I am still figuring this one out... Gives me 10 categories when I choose 2.
+
+<!-- Generateheatmap? -->
+<!-- ```{r} -->
+<!-- chr=unlist(strsplit(colnames(gbm.cn),"\\.")) -->
+<!-- chr=chr[seq(1,length(chr),by=2)] -->
+<!-- chr=gsub("chr","",chr) -->
+<!-- chr=as.numeric(chr) -->
+
+<!-- # truncate the values for a better image plot -->
+<!-- cn.image=gbm.cn -->
+<!-- cn.image[cn.image>1.5]=1.5 -->
+<!-- cn.image[cn.image< -1.5]= -1.5 -->
+<!-- exp.image=gbm.exp -->
+<!-- exp.image[exp.image>2.5]=2.5 -->
+<!-- exp.image[exp.image< -2.5]= -2.5 -->
+<!-- bw.col = colorpanel(2,low="white",high="black") -->
+<!-- col.scheme = alist() -->
+<!-- col.scheme[[1]] = bw.col -->
+<!-- col.scheme[[2]] = bluered(256) -->
+<!-- col.scheme[[3]] = bluered(256) -->
+<!-- plotHeatmap(fit=best.fit,datasets=list(gbm.mut2,cn.image,exp.image), -->
+<!-- type=c("binomial","gaussian","gaussian"), col.scheme = col.scheme, -->
+<!-- row.order=c(F,F,T),chr=chr,plot.chr=c(F,T,F),sparse=c(T,F,T),cap=c(F,T,F)) -->
+<!-- # See Figure 1 for the heatmap plot for the three-cluster result. -->
+<!-- # We also show the four-cluster solution. -->
+<!-- k=3 -->
+<!-- best.cluster2=clusters[,k] -->
+<!-- best.fit2=output[[k]]$fit[[which.min(BIC[,k])]] -->
+<!-- # Plot the heatmap for the 4-cluster solution (Figure 2). -->
+<!-- plotHeatmap(fit=best.fit2,datasets=list(gbm.mut2,cn.image,exp.image), -->
+<!-- type=c("binomial","gaussian","gaussian"), col.scheme = col.scheme, -->
+<!-- row.order=c(F,F,T),chr=chr,plot.chr=c(F,T,F),sparse=c(T,F,T),cap=c(F,T,F)) -->
+<!-- ``` -->
+<br>
+<br>
+
+***
+
+<br>
+
+# III.Clustering using MOVICS
+Here is a (looks) nice tutorial using the MOVICS package https://xlucpu.github.io/MOVICS/MOVICS-VIGNETTE.html#Section.3  
+It does a multiple type of clustering and has function from selecting the most informative features to creating nice heatmap.  
+I copied some of the text for explanation.
+```{r MOVICS}
+# devtools::install_github("xlucpu/MOVICS")
+# Need to manually add the code of package heatmap.plus in the Library
+# Have also other dependencies that needs to be installed by themselves like
+# devtools::install_github("maxconway/SNFtool")
+# devtools::install_github("danro9685/CIMLR", ref = 'R')
+# If need to download gfortran https://mac.r-project.org/tools/
+library("MOVICS")
+```
+
+## Get elites by reducing data dimension.  
+Although all these omics data have been already processed (filtered from the original dataset), I am still pleased to show you how to use getElites() function to filter out features that meet some stringent requirements, and those features that are preserved in this procedure are considered elites by MOVICS. Five filtering methods are provided here, namely mad for median absolute deviation, sd for standard deviation, pca for principal components analysis, cox for univariate Cox proportional hazards regression, and freq for binary omics data. This function also handles missing values coded in NA
+by removing them directly or imputing them by k
+nearest neighbors using a Euclidean metric through argument of na.action.
+<span style="color: blue;">I am keeping the 5000 best informative features. <span style="color: red;">Should I do it differently? Keeping 50%? Something else?</span> 
+```{r get elites, class.source = 'fold-show'}
+# Restart from Alu_imputed, ERV_imputed, L1_imputed (no features were filtered out)
+
+# dim(L1_imputed)
+# elite_L1 <- getElites(dat = L1_imputed,
+#                        method = "mad",
+#                        na.action = "rm", # NA values will be removed
+#                        elite.num = 5000#, # this time only top 100 features with high sd values are kept
+#                        # elite.pct = 0.1 # only top 10% features with high mad values are kept
+#                       )
+#                        # this time elite.pct argument will be disabled because elite.num has been already indicated.
+#                        # >elite.num has been provided then discards elite.pct.
+# dim(elite_L1$elite.dat)
+# 
+# dim(Alu_imputed)
+# elite_Alu <- getElites(dat = Alu_imputed,
+#                        method = "mad",
+#                        na.action = "rm",
+#                        elite.num = 5000
+#                        )
+# dim(elite_Alu$elite.dat)
+# 
+# dim(ERV_imputed)
+# elite_ERV <- getElites(dat = ERV_imputed,
+#                        method = "mad",
+#                        na.action = "rm",
+#                        elite.num = 5000
+#                        )
+# dim(elite_ERV$elite.dat)
+```
+
+
+```{r create list of elite data}
+# create list of elite data
+# cluster_data <- list(L1_dat = elite_L1$elite.dat,
+#                 Alu_dat = elite_Alu$elite.dat,
+#                 ERV_dat = elite_ERV$elite.dat)
+# write_rds(cluster_data, "clustering/MOVICS/movics_cluster_data_08032023.rds")
+cluster_data <- readRDS("~/Documents/GitHub/Peres/methylomics_disparities/clustering/MOVICS/movics_cluster_data_08032023.rds")
+```
+
+## Get optimal number for clustering
+```{r MOVICS optimal k, class.source = 'fold-show'}
+# optimal_k <- getClustNum(data = cluster_data,
+#                          is.binary = c(F,F,F),
+#                          try.N.clust = 2:10, # try cluster number from 2 to 10
+#                          fig.name = "Best cluster number for methylation data_08032023")
+knitr::include_graphics('/Users/colinccm/Documents/GitHub/Peres/methylomics_disparities/clustering/MOVICS/Best cluster number for methylation data_08032023.jpeg')
+```
+
+## Perform multi-omics integrative clustering with 9 algorithms
+"SNF", "PINSPlus", "NEMO", "COCA", "LRAcluster", "ConsensusClustering", "IntNMF", "CIMLR", "MoCluster", "iClusterBayes".  
+<span style="color: blue;">I used NEMO, COCA (Cluster Of Clusters Analysis), ConsensusClustering (which is a concatenated clustering), IntNMF (I don't really understand what is the process in it), MoCluster (consensus clustering). I choose binomial distribution for those.<span style="color: red;">Is that the correct choice?</span>   
+The package also used iClusterBayes so I might not need to try the iClusterPlus package but will try to see if their is differences. The problem with this one with MOVICS is that I had to choose a gaussian distribution or I get an error message "some columns of binomial data are made of categories not equal to 2, which must be removed."</span>  
+<span style="color: red;">It goes back to the question : What is the distribution type of methylation data?</span>
+```{r MOVICS clustering, class.source = 'fold-show'}
+# iClusterBayes.res <- getiClusterBayes(data        = cluster_data,
+#                                       N.clust     = 2,
+#                                       # If choose binomial :
+#                                       # Error: some columns of binomial data are made of categories not equal to 2, which must be removed.
+#                                       type        = c("gaussian","gaussian","gaussian"),
+#                                       n.burnin    = 1800,
+#                                       n.draw      = 1200,
+#                                       prior.gamma = c(0.5, 0.5, 0.5, 0.5),
+#                                       sdev        = 0.05,
+#                                       thin        = 3)
+# # If methodslist == "IntNMF", Integrative clustering methods using Non-Negative Matrix Factorization
+# # If methodslist == "SNF", Similarity network fusion.
+# # If methodslist == "LRAcluster", Integrated cancer omics data analysis by low rank approximation.
+# # If methodslist == "PINSPlus", Perturbation Clustering for data integration and disease subtyping
+# # If methodslist == "ConsensusClustering", Consensus clustering
+# # If methodslist == "NEMO", Neighborhood based multi-omics clustering
+# # If methodslist == "COCA", Cluster Of Clusters Analysis
+# # If methodslist == "CIMLR", Cancer Integration via Multikernel Learning (Support Feature Selection)
+# # If methodslist == "MoCluster", Identifying joint patterns across multiple omics data sets (Support Feature Selection)
+# # If methodslist == "iClusterBayes", Integrative clustering of multiple genomic data by fitting a Bayesian latent variable model (Support Feature Selection)
+# cluster_res_list <- getMOIC(data = cluster_data,
+#                          methodslist = list("NEMO",
+#                                             "COCA",
+#                                             "ConsensusClustering",
+#                                             "IntNMF",
+#                                             "MoCluster" # Concatenated clustering
+#                                             # "iClusterBayes" # Concatenated clustering
+#                                             ),
+#                          N.clust = 2,
+#                          type = c("binomial","binomial","binomial")
+#                          )
+# # cluster_res_list$ConsensusClustering$fit[[1]]$consensusTree
+# 
+# 
+# # Append iclusterbayes to the others
+# cluster_res_list <- append(cluster_res_list,
+#                         list("iClusterBayes" = iClusterBayes.res))
+# 
+# write_rds(cluster_res_list, "clustering/MOVICS/movics_cluster_res_list_08032023.rds")
+cluster_res_list <- read_rds(paste0(here::here(), "/clustering/MOVICS/movics_cluster_res_list_08032023.rds"))
+```
+
+## Get consensus from different algorithms - Heatmap
+I am not sure how to read it. For me it could be only a consensus between 2 of the clusters so <span style="color: red;">which one?</span>
+```{r consensus}
+concensus_moic <- getConsensusMOIC(moic.res.list = cluster_res_list,
+                                   fig.name = "CONSENSUS HEATMAP",
+                                   distance = "euclidean",
+                                   linkage = "average")
+concensus_moic
+```
+
+## Get quantification of similarity using silhoutte
+I am not sure how to read it.  
+```{r silhoutte}
+getSilhouette(sil = concensus_moic$sil, # a sil object returned by getConsensusMOIC()
+              fig.path = getwd(),
+              fig.name = "SILHOUETTE",
+              height = 5.5,
+              width = 5)
+```
+
+## Get multi-omics heatmap based on clustering result
+I am plotting only the first 1000 rows of each dataset.  
+```{r MOVICS prep data for heatmap}
+# convert beta value to M value for stronger signal
+cluster_data_mvalue <- cluster_data
+cluster_data_mvalue$L1_dat <- log2(cluster_data_mvalue$L1_dat / (1 - cluster_data_mvalue$L1_dat)) ##### These create NAs????
+cluster_data_mvalue$Alu_dat <- log2(cluster_data_mvalue$Alu_dat / (1 - cluster_data_mvalue$Alu_dat))
+cluster_data_mvalue$ERV_dat <- log2(cluster_data_mvalue$ERV_dat / (1 - cluster_data_mvalue$ERV_dat))
+
+# data normalization for heatmap
+# do it for the first 1000 rows - plotting only 1000 features
+plot_cluster <- getStdiz(data = lapply(cluster_data, head, 1000),
+                     halfwidth  = c(NA,NA,NA), # no truncation 
+                     centerFlag = c(T,T,T), # yes center 
+                     scaleFlag  = c(T,T,T)) # yes scale 
+plot_cluster_mvalue <- getStdiz(data = lapply(cluster_data_mvalue, head, 1000),
+                                halfwidth  = c(NA,NA,NA), # no truncation 
+                                centerFlag = c(T,T,T), # center 
+                                scaleFlag  = c(T,T,T)) # scale 
+write_rds(plot_cluster, "plot_cluster.rds")
+```
+
+### NEMO
+```{r NEMO heatmap, fig.height=8}
+# L1.col   <- c("#00FF00", "#000000", "#FF0000")
+# Alu.col <- c("#6699CC", "white"  , "#FF3C38")
+# ERV.col   <- c("#0074FE", "#96EBF9", "#FEE900", "#F00003")
+# col.list   <- list(L1.col, Alu.col, ERV.col)
+
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F), 
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$NEMO$clust.res, # cluster results
+             clust.dend    = cluster_res_list$NEMO$clust.dend, # show dendrogram for samples
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, # width of each subheatmap
+             height        = 5, # height of each subheatmap
+             fig.name      = "Comprehensive of NEMO_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F), 
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$NEMO$clust.res, # cluster results
+             clust.dend    = cluster_res_list$NEMO$clust.dend, # show dendrogram for samples
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, # width of each subheatmap
+             height        = 5, # height of each subheatmap
+             fig.name      = "Comprehensive of NEMO M value_08032023")
+```
+
+### COCA
+```{r COCA heatmap, fig.height=8}
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$COCA$clust.res, 
+             clust.dend    = cluster_res_list$COCA$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of COCA_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$COCA$clust.res, 
+             clust.dend    = cluster_res_list$COCA$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of COCA M value_08032023")
+```
+
+### ConsensusClustering
+```{r CC heatmap, fig.height=8}
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$ConsensusClustering$clust.res, 
+             clust.dend    = cluster_res_list$ConsensusClustering$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of ConsensusClustering_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$ConsensusClustering$clust.res, 
+             clust.dend    = cluster_res_list$ConsensusClustering$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of ConsensusClustering M value_08032023")
+```
+
+### IntNMF
+```{r IntNMF heatmap, fig.height=8}
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$IntNMF$clust.res, 
+             clust.dend    = cluster_res_list$IntNMF$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of IntNMF_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$IntNMF$clust.res, 
+             clust.dend    = cluster_res_list$IntNMF$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of IntNMF M value_08032023")
+```
+
+### MoCluster
+```{r MoCluster heatmap, fig.height=6}
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$MoCluster$clust.res, 
+             clust.dend    = cluster_res_list$MoCluster$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of MoCluster_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$MoCluster$clust.res, 
+             clust.dend    = cluster_res_list$MoCluster$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of MoCluster M value_08032023")
+```
+
+### iClusterBayes
+```{r iclusterbayes heatmap, fig.height=6}
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$iClusterBayes$clust.res, 
+             clust.dend    = cluster_res_list$iClusterBayes$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of iClusterBayes_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$iClusterBayes$clust.res, 
+             clust.dend    = cluster_res_list$iClusterBayes$clust.dend, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             fig.name      = "Comprehensive of iClusterBayes M value_08032023")
+```
+
+# 2x2 table
+```{r 2x2 table}
+a <- bayesclus %>% 
+  rename("patient_id" = "samID") %>% 
+  select(samID, overall_bcc) %>% 
+  mutate(overall_bcc = case_when(
+    overall_bcc == 1 ~ 2,
+    overall_bcc == 2 ~ 1
+  )) %>% 
+  full_join(.,cluster_res_list$iClusterBayes$clust.res %>% 
+              as_tibble() %>% 
+              rename("clust" = "iClusterBayes")) %>% 
+  full_join(., 
+            cluster_res_list$NEMO$clust.res %>% 
+              as_tibble() %>% 
+              rename("clust" = "NEMO")) %>% 
+  full_join(., 
+            cluster_res_list$COCA$clust.res %>% 
+              as_tibble() %>% 
+              rename("clust" = "COCA")) %>% 
+  full_join(., 
+            cluster_res_list$ConsensusClustering$clust.res %>% 
+              as_tibble() %>% 
+              rename("clust" = "ConsensusClustering")) %>% 
+  full_join(., 
+            cluster_res_list$IntNMF$clust.res %>% 
+              as_tibble() %>% 
+              rename("clust" = "IntNMF")) %>% 
+  full_join(., 
+            cluster_res_list$MoCluster$clust.res %>% 
+              as_tibble() %>% 
+              rename("clust" = "MoCluster"))
+
+library(gtsummary)
+theme_gtsummary_compact()
+
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = overall_bcc)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = overall_bcc)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = overall_bcc)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = overall_bcc)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = overall_bcc)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = overall_bcc)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = overall_bcc)
+tbl_bcc <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = iClusterBayes)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = iClusterBayes)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = iClusterBayes)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = iClusterBayes)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = iClusterBayes)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = iClusterBayes)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = iClusterBayes)
+tbl_iClusterBayes <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = NEMO)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = NEMO)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = NEMO)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = NEMO)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = NEMO)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = NEMO)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = NEMO)
+tbl_NEMO <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = COCA)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = COCA)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = COCA)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = COCA)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = COCA)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = COCA)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = COCA)
+tbl_COCA <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = ConsensusClustering)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = ConsensusClustering)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = ConsensusClustering)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = ConsensusClustering)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = ConsensusClustering)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = ConsensusClustering)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = ConsensusClustering)
+tbl_ConsensusClustering <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = IntNMF)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = IntNMF)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = IntNMF)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = IntNMF)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = IntNMF)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = IntNMF)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = IntNMF)
+tbl_IntNMF <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+tbl1 <- a %>% 
+  tbl_cross(col = overall_bcc, row = MoCluster)
+tbl2 <- a %>% 
+  tbl_cross(col = iClusterBayes, row = MoCluster)
+tbl3 <- a %>% 
+  tbl_cross(col = NEMO, row = MoCluster)
+tbl4 <- a %>% 
+  tbl_cross(col = COCA, row = MoCluster)
+tbl5 <- a %>% 
+  tbl_cross(col = ConsensusClustering, row = MoCluster)
+tbl6 <- a %>% 
+  tbl_cross(col = IntNMF, row = MoCluster)
+tbl7 <- a %>% 
+  tbl_cross(col = MoCluster, row = MoCluster)
+tbl_MoCluster <- tbl_merge(list(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7), 
+          tab_spanner = c("overall_bcc", "iClusterBayes", 
+                          "NEMO", "COCA", "ConsensusClustering",
+                          "IntNMF", "MoCluster"))
+
+tbl_stack(list(tbl_bcc, tbl_iClusterBayes, tbl_NEMO, tbl_COCA,
+               tbl_ConsensusClustering, tbl_IntNMF,
+               tbl_MoCluster))  %>%
+  modify_caption("**select features with mad")
+
+```
+
+# Do we have batch effect?
+```{r look at batch effect}
+load(paste0(here::here(), "/cleaned_07082022.rda"))
+
+phenoclean <- phenoclean %>%
+  select(-c(starts_with("chr"))) %>%
+  remove_rownames() %>%
+  mutate(suid = Sample_Name) %>%
+  select(patient_id = Complete.Barcode, suid, everything(), -c(Sample_Name, roi_num : Basename))
+
+annCol <- phenoclean %>% select(patient_id, Batch) %>% 
+  mutate(patient_id = paste0("X", patient_id))
+coca_cluster_results <- cluster_res_list$COCA$clust.res %>%
+  remove_rownames()
+
+coca_cluster_results <- coca_cluster_results %>% 
+  full_join(., annCol, 
+            by = c("samID" = "patient_id"))
+
+# table(coca_cluster_results$clust, coca_cluster_results$Batch)
+coca_cluster_results %>% 
+  select(Batch, clust) %>% 
+  tbl_summary(by = Batch) %>% 
+  add_p() %>% add_overall() %>% 
+  modify_spanning_header(c(stat_1, stat_2, 
+                           stat_3) ~ "**Batch**")
+
+annCol <- annCol %>% 
+  column_to_rownames("patient_id")
+annColors <- list(Batch  = c("Doherty" = "blue",
+                            "Peres"   = "red",
+                            "Peres2"   = "yellow"))
+```
+
+## B then M value
+```{r COCA heatmap with batch, fig.height=8}
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$COCA$clust.res, 
+             clust.dend    = NULL, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             annCol        = annCol, # annotation for samples
+             annColors     = annColors, # annotation color
+             fig.name      = "Comprehensive of COCA_with_batches_08032023")
+
+getMoHeatmap(data          = plot_cluster_mvalue,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$COCA$clust.res, 
+             clust.dend    = NULL, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             annCol        = annCol, # annotation for samples
+             annColors     = annColors, # annotation color
+             fig.name      = "Comprehensive of COCA M value_with_batches_08032023")
+```
+
+B value with mutations
+```{r}
+
+
+
+
+
+getMoHeatmap(data          = plot_cluster,
+             row.title     = c("L1_dat","Alu_dat","ERV_dat"),
+             is.binary     = c(F,F,F),
+             legend.name   = c("L1_dat","Alu_dat","ERV_dat"),
+             clust.res     = cluster_res_list$COCA$clust.res, 
+             clust.dend    = NULL, 
+             color         = list(c("#0000FF", "white"  , "#FF3C38"),
+                                  c("#0000FF", "white"  , "#FF0000"),
+                                  c("#0000FF", "white"  , "#FF0000")),
+             width         = 10, 
+             height        = 5, 
+             annCol        = annCol, # annotation for samples
+             annColors     = annColors, # annotation color
+             fig.name      = "Heatmap of BCC_with_gpe_041022024")
+```
+
