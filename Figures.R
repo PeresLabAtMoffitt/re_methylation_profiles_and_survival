@@ -82,20 +82,20 @@ design <- "ABBB
   ((L1 / ALU / LTR)+
    plot_layout(axes = "collect")) +
   plot_annotation(tag_levels = "A",
-                  title = 'Additional file 3')+
+                  title = 'Additional file 2')+
   plot_layout(axes = "collect",
               design = design
   ))
 
 
 
-ggsave("Additional file 3 patients methylation pattern with title.pdf",
+ggsave("Additional file 2.pdf",
        width = 5,
        height = 10, 
        dpi = 600)
 
 
-# Batch scatter plot
+# Batch scatter plot - not run
 library(tidyverse)
 library("SQMtools")
 theme_set(theme_classic())
@@ -152,10 +152,10 @@ beta <- betas_clean6
 pal <- brewer.pal(3,"Dark2")
 
 # plotMDS(beta, top=2)
-library(limma)
-plotMDS(beta, top=1000, gene.selection="common", 
-        pch = c(0, 15, 5),
-        col=pal[factor(batch_col)])
+# library(limma)
+# plotMDS(beta, top=1000, gene.selection="common", 
+#         pch = c(0, 15, 5),
+#         col=pal[factor(batch_col)])
 # ggsave("Figure S1 batch-limna.pdf",
 #        width = 4,
 #        height = 10, 
@@ -174,10 +174,10 @@ mdsPlot(beta, numPositions = 1000,
         legendPos = "topright", 
         legendNCol = 1)
 title(xlab = "Dimension 1", ylab = "Dimension 2", 
-      main = "Additional file 2                                                                                                                                                                               ", 
+      main = "Additional file 1                                                                                                                                                                               ", 
       outer = FALSE)
 
-# ggsave("Figure S1 batch-minfi with legend.pdf", # Doesn't work, need to extract h = 6, w = 8
+# ggsave("Additional file 1.pdf", # Doesn't work, need to extract h = 6, w = 8, or 9.43 / 6.59
 #        width = 4,
 #        height = 10,
 #        dpi = 600)
@@ -363,38 +363,12 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$NEMO$clust.res, # cluster results
              clust.dend    = cluster_res_list1$NEMO$clust.dend, # show dendrogram for samples
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"), # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, # width of each subheatmap
              height        = 5, # height of each subheatmap
-             fig.name      = "heatmaps/Comprehensive heatmap of NEMO_05142025")
-
-getMoHeatmap(data          = plot_cluster,
-             row.title     = c("L1","Alu","ERV"),
-             is.binary     = c(F,F,F), 
-             legend.name   = c("L1","Alu","ERV"),
-             clust.res     = cluster_res_list1$NEMO$clust.res, # cluster results
-             clust.dend    = cluster_res_list1$NEMO$clust.dend, # show dendrogram for samples
-             color         = list(c("#0099FF", "white"  , "#FF99CC"), # col.list
-                                  c("#330033", "white"  , "#66CC99"),
-                                  c("#003300", "white"  , "orange")),# #330000
-             width         = 10, # width of each subheatmap
-             height        = 5, # height of each subheatmap
-             fig.name      = "heatmaps/Comprehensive heatmap of NEMO_05142025_color")
-
-getMoHeatmap(data          = plot_cluster,
-             row.title     = c("L1","Alu","ERV"),
-             is.binary     = c(F,F,F), 
-             legend.name   = c("L1","Alu","ERV"),
-             clust.res     = cluster_res_list1$NEMO$clust.res, # cluster results
-             clust.dend    = cluster_res_list1$NEMO$clust.dend, # show dendrogram for samples
-             color         = list(c("#003366", "white"  , "#FF3C38"), # col.list
-                                  c("#003366", "white"  , "#FF9933"),
-                                  c("#66CC99", "white"  , "#FF6600")),# #330000
-             width         = 10, # width of each subheatmap
-             height        = 5, # height of each subheatmap
-             fig.name      = "heatmaps/Comprehensive heatmap of NEMO_05142025_color2")
+             fig.name      = "heatmaps/Comprehensive heatmap of NEMO_05222025")
 
 
 ### COCA
@@ -405,12 +379,12 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$COCA$clust.res, 
              # clust.dend    = cluster_res_list1$COCA$clust.dend, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
-             fig.name      = "heatmaps/Comprehensive heatmap of COCA_05142025")
+             fig.name      = "heatmaps/Comprehensive heatmap of COCA_05222025")
 
 
 
@@ -422,12 +396,12 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$ConsensusClustering$clust.res, 
              # clust.dend    = cluster_res_list1$ConsensusClustering$clust.dend, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
-             fig.name      = "heatmaps/Comprehensive heatmap of ConsensusClustering_05142025")
+             fig.name      = "heatmaps/Comprehensive heatmap of ConsensusClustering_05222025")
 
 
 
@@ -439,12 +413,12 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$IntNMF$clust.res, 
              # clust.dend    = cluster_res_list1$IntNMF$clust.dend, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
-             fig.name      = "heatmaps/Comprehensive heatmap of IntNMF_05142025")
+             fig.name      = "heatmaps/Comprehensive heatmap of IntNMF_05222025")
 
 
 
@@ -456,12 +430,12 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$MoCluster$clust.res, 
              # clust.dend    = cluster_res_list1$MoCluster$clust.dend, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
-             fig.name      = "heatmaps/Comprehensive heatmap of MoCluster_05142025")
+             fig.name      = "heatmaps/Comprehensive heatmap of MoCluster_05222025")
 
 
 
@@ -473,12 +447,12 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$iClusterBayes$clust.res, 
              # clust.dend    = cluster_res_list1$iClusterBayes$clust.dend, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
-             fig.name      = "heatmaps/Comprehensive heatmap of iClusterBayes_05142025")
+             fig.name      = "heatmaps/Comprehensive heatmap of iClusterBayes_05222025")
 
 
 ### BCC
@@ -494,12 +468,12 @@ getMoHeatmap(data          = plot_cluster,
              is.binary     = c(F,F,F), 
              legend.name   = c("L1","Alu","ERV"),
              clust.res     = cluster_res_list1$BCC$clust.res, # cluster results
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, # width of each subheatmap
              height        = 5, # height of each subheatmap
-             fig.name      = "heatmaps/Heatmap of BCC_05142025")
+             fig.name      = "heatmaps/Heatmap of BCC_05222025")
 
 
 # Heatmap BRCA 1 and 2----
@@ -558,14 +532,14 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","LTR"),
              clust.res     = cluster_res_list1$COCA$clust.res,
              clust.dend    = NULL, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000") # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
              annCol        = annCol, # annotation for samples
              annColors     = annColors, # annotation color
-             fig.name      = "heatmaps/BRCA Heatmap of COCA_with_limiteddat_05142025"
+             fig.name      = "heatmaps/BRCA Heatmap of COCA_with_limiteddat_05222025"
              )
 
 # # BRCA 1 and 2 - overall/germline/tumor
@@ -787,6 +761,56 @@ annColors <- list(
                                          "Unknown"   = "white")
                                )
 
+annColors <- list(
+  iClusterBayes  = c("1" = "red",
+                     "2"   = "blue",
+                     "Unknown"   = "black"),
+  
+  MoCluster  = c("1" = "red",
+                 "2"   = "blue",
+                 "Unknown"   = "black"),
+  ConsensusClustering  = c("1" = "red",
+                           "2"   = "blue",
+                           "Unknown"   = "black"),
+  IntNMF  = c("1" = "red",
+              "2"   = "blue",
+              "Unknown"   = "black"),
+  NEMO  = c("1" = "red",
+            "2"   = "blue",
+            "Unknown"   = "black"),
+  BCC  = c("1" = "red",
+           "2"   = "blue",
+           "Unknown"   = "black"),
+  COCA  = c("1" = "red",
+            "2"   = "blue",
+            "Unknown"   = "black")
+)
+
+annColors <- list(
+  iClusterBayes  = c("1" = "#762A83",
+                     "2"   = "#7FBF7B",
+                     "Unknown"   = "black"),
+  
+  MoCluster  = c("1" = "#762A83",
+                 "2"   = "#7FBF7B",
+                 "Unknown"   = "black"),
+  ConsensusClustering  = c("1" = "#762A83",
+                           "2"   = "#7FBF7B",
+                           "Unknown"   = "black"),
+  IntNMF  = c("1" = "#762A83",
+              "2"   = "#7FBF7B",
+              "Unknown"   = "black"),
+  NEMO  = c("1" = "#762A83",
+            "2"   = "#7FBF7B",
+            "Unknown"   = "black"),
+  BCC  = c("1" = "#762A83",
+           "2"   = "#7FBF7B",
+           "Unknown"   = "black"),
+  COCA  = c("1" = "#762A83",
+            "2"   = "#7FBF7B",
+            "Unknown"   = "black")
+)
+
 
 # cluster_res_list1$COCA$clust.res <- cluster_res_list1$COCA$clust.res %>% 
 #   mutate(clust = case_when(
@@ -800,14 +824,14 @@ getMoHeatmap(data          = plot_cluster,
              legend.name   = c("L1","Alu","LTR"),
              clust.res     = cluster_res_list1$COCA$clust.res,
              clust.dend    = NULL, 
-             color         = list(c("#0000FF", "white"  , "#FF3C38"), # col.list
-                                  c("#0000FF", "white"  , "#FF0000"),
-                                  c("#0000FF", "white"  , "#FF0000")),
+             color         = list(c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF3C38"), # col.list
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C"), # c("#0000FF", "white"  , "#FF0000"),
+                                  c("#000080", "#3F3F9F", "#7F7FBF", "#FFFFFF", "#F2C8C8", "#E69292", "#D95C5C")), # c("#0000FF", "white"  , "#FF0000")),
              width         = 10, 
              height        = 5, 
              annCol        = annCol, # annotation for samples
              annColors     = annColors, # annotation color
-             fig.name      = "heatmaps/Figure1_05142025"
+             fig.name      = "heatmaps/Figure1_05222025"
 )
 
 # Survival----
@@ -839,7 +863,7 @@ overall <- ggsurvplot(survfit(Surv(os_time_5year, os_event_5year) ~ coca_RE_clus
            xlab = "Time (months)",
            ylab = "OS (probability)",
            legend = "top",
-           legend.title = "COCA cluster", palette = c("black", "grey"),
+           legend.title = "COCA cluster", palette = c("#762A83", "#7FBF7B"),
            legend.labs = c("Active", "Repressed"),
            pval = TRUE,
            conf.int = FALSE,
@@ -1457,7 +1481,7 @@ wrap_elements(grid::textGrob(''), ignore_tag = TRUE, clip = FALSE) +
 
 
 
-ggsave("Figure 2 KM with title_05152025.pdf", device = cairo_pdf,
+ggsave("Figure 2.pdf", device = cairo_pdf,
        path = here::here(),
        width = 12, height = 5,
        units = c("in"),
@@ -1503,10 +1527,10 @@ annot_ERV_beta_results1 <- name_change(annot_ERV_beta_results1)
 
 ERV_beta_results <-
   annot_ERV_beta_results1 %>% 
-  dplyr::rename(Index = barcode)# %>%
+  dplyr::rename(Index = barcode) %>%
   # Merge with annotation, get #chr, start, end
-  # left_join(as_tibble(rempAnnot(remp_res_ERV)), ., by = "Index") %>% 
-  # select(Index, everything())
+  left_join(as_tibble(rempAnnot(remp_res_ERV)), ., by = "Index") %>%
+  select(Index, seqnames, start, end, strand, starts_with("HGSC_"))
 
 # write_csv(ERV_beta_results, "ERV methylation results with annotations.csv")
 
@@ -1518,11 +1542,11 @@ annot_L1_beta_results1 <- annot_L1_beta_results %>% as_tibble(rownames = "barcod
 annot_L1_beta_results1 <- name_change(annot_L1_beta_results1)
 L1_beta_results <-
   annot_L1_beta_results1 %>%
-  dplyr::rename(Index = barcode)# %>%
+  dplyr::rename(Index = barcode) %>%
   # Merge with annotation, get #chr, start, end
-#   left_join(as_tibble(rempAnnot(remp_res_L1)), ., by = "Index") %>% 
-#   select(Index, everything())
-# 
+  left_join(as_tibble(rempAnnot(remp_res_L1)), ., by = "Index") %>%
+  select(Index, seqnames, start, end, strand, starts_with("HGSC_"))
+
 # write_csv(L1_beta_results, "L1 methylation results with annotations.csv")
 
 # Alu
@@ -1533,16 +1557,16 @@ annot_Alu_beta_results1 <- annot_Alu_beta_results %>% as_tibble(rownames = "barc
 annot_Alu_beta_results1 <- name_change(annot_Alu_beta_results1)
 Alu_beta_results <-
   annot_Alu_beta_results1 %>%
-  dplyr::rename(Index = barcode)# %>%
+  dplyr::rename(Index = barcode) %>%
   # Merge with annotation, get #chr, start, end
-#   left_join(as_tibble(rempAnnot(remp_res_Alu)), ., by = "Index") %>% 
-#   select(Index, everything())
-# 
+  left_join(as_tibble(rempAnnot(remp_res_Alu)), ., by = "Index") %>%
+  select(Index, seqnames, start, end, strand, starts_with("HGSC_"))
+
 # write_csv(Alu_beta_results, "Alu methylation results with annotations.csv")
 
 write_csv(bind_rows(ERV_beta_results,
           L1_beta_results,
-          Alu_beta_results), "RE methylation patient-level data.csv")
+          Alu_beta_results), "RE methylation patient-level data_05212025.csv")
 
 erv_summary <- readxl::read_xlsx(paste0(here::here(), "/Additional file 6.xlsx"), sheet = "LTR")
 erv_summary <- erv_summary %>% 
@@ -1596,7 +1620,7 @@ met_data %>%
   geom_boxplot(width=0.1, position = position_dodge(0.9), alpha=0.2, color = "darkgrey", 
                aes(group = interaction(coca_RE_cluster, cell_type)))+
   labs(x = "", y = "Cell proportion estimate", tag = "Additional file 8")+
-  scale_color_manual(values = c("black", "grey"),
+  scale_color_manual(values = c("#762A83", "#7FBF7B"),
                      aesthetics = c("colour", "fill"),
                      labels = c("Active", "Repressed"),
                      name = "COCA cluster")+
@@ -1609,7 +1633,7 @@ met_data %>%
   theme_classic()+
   theme(plot.title.position = "plot")
 
-ggsave("Figure S6 immune cell proportion y break with title_05152025.pdf",
+ggsave("Additional file 8.pdf",
        width = 6,
        height = 5, 
        dpi = 600)
